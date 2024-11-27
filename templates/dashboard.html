@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gmail Automation - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        @media (max-width: 640px) {
+            .mobile-menu {
+                display: none;
+            }
+            .mobile-menu.active {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="relative flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-800">Gmail AI</h1>
+                </div>
+                
+                <!-- Mobile menu button -->
+                <div class="sm:hidden">
+                    <button type="button" onclick="toggleMobileMenu()" 
+                            class="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Desktop menu -->
+                <div class="hidden sm:flex items-center space-x-4">
+                    <button onclick="showTemplateModal()" 
+                            class="text-blue-600 hover:text-blue-800 px-3 py-2">Manage Templates</button>
+                    <button onclick="showKnowledgeModal()"
+                            class="text-green-600 hover:text-green-800 px-3 py-2">Knowledge Base</button>
+                    <button onclick="showGroqTestModal()"
+                            class="text-purple-600 hover:text-purple-800 px-3 py-2">Test AI</button>
+                    <a href="/logout" 
+                       class="text-gray-600 hover:text-gray-800 px-3 py-2">Logout</a>
+                </div>
+            </div>
+
+            <!-- Mobile menu -->
+            <div class="mobile-menu sm:hidden">
+                <div class="px-2 pt-2 pb-3 space-y-1">
+                    <button onclick="showTemplateModal()" 
+                            class="block w-full text-left text-blue-600 hover:text-blue-800 px-3 py-2">Manage Templates</button>
+                    <button onclick="showKnowledgeModal()"
+                            class="block w-full text-left text-green-600 hover:text-green-800 px-3 py-2">Knowledge Base</button>
+                    <button onclick="showGroqTestModal()"
+                            class="block w-full text-left text-purple-600 hover:text-purple-800 px-3 py-2">Test AI</button>
+                    <a href="/logout" 
+                       class="block w-full text-left text-gray-600 hover:text-gray-800 px-3 py-2">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+        <!-- Compose Email Section -->
+        <div class="bg-white shadow-md rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                <h2 class="text-lg font-semibold mb-2 sm:mb-0">Compose Email</h2>
+                <div class="w-full sm:w-auto flex items-center space-x-2">
+                    <label class="text-sm text-gray-600">Template:</label>
+                    <select id="templateSelect" onchange="loadTemplate()" 
+                            class="w-full sm:w-auto border rounded-md px-2 py-1 text-sm">
+                        <option value="">Select template...</option>
+                    </select>
+                </div>
+            </div>
+            <form id="emailForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">To: (Separate multiple emails with commas)</label>
+                    <div class="relative">
+                        <input type="text" id="to" required
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="email1@example.com, email2@example.com">
+                        <div id="emailTags" class="mt-2 flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Subject:</label>
+                    <input type="text" id="subject" required
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Message:</label>
+                    <textarea id="message" rows="4" required
+                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="flex justify-between">
+                    <button type="submit"
+                            class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Send Email
+                    </button>
+                    <button type="button" onclick="saveAsTemplate()"
+                            class="text-blue-500 hover:text-blue-700 px-4 py-2 rounded-md border border-blue-500 hover:border-blue-700">
+                        Save as Template
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Recent Emails Section -->
+        <div class="bg-white shadow-md rounded-lg p-4 sm:p-6">
+            <h2 class="text-lg font-semibold mb-4">Recent Emails</h2>
+            <div id="emailList" class="space-y-4">
+                <!-- Emails will be loaded here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Template Modal -->
+    <div id="templateModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden z-50">
+        <div class="fixed inset-0 overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+                    <div class="px-6 py-4 border-b">
+                        <h3 class="text-lg font-semibold">Manage Templates</h3>
+                    </div>
+                    <div class="px-6 py-4">
+                        <div id="templateList" class="space-y-4">
+                            <!-- Templates will be loaded here -->
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-t flex justify-end space-x-2">
+                        <button onclick="hideTemplateModal()" 
+                                class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Knowledge Base Modal -->
+    <div id="knowledgeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-4 sm:p-5 border w-11/12 sm:w-4/5 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Knowledge Base Management</h3>
+                
+                <!-- Text Input -->
+                <div class="mb-8">
+                    <h4 class="text-md font-medium mb-2">Add Business Description</h4>
+                    <textarea id="businessDescription" rows="4" 
+                            class="w-full p-2 border rounded-md"
+                            placeholder="Describe your business..."></textarea>
+                    <button onclick="addBusinessDescription()" 
+                            class="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
+                        Save Description
+                    </button>
+                </div>
+
+                <!-- File Upload -->
+                <div class="mb-8">
+                    <h4 class="text-md font-medium mb-2">Upload Document</h4>
+                    <input type="file" id="knowledgeFile" accept=".pdf,.csv,.txt" class="mb-2">
+                    <button onclick="uploadFile()" 
+                            class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">
+                        Upload File
+                    </button>
+                </div>
+
+                <!-- Website URL -->
+                <div class="mb-8">
+                    <h4 class="text-md font-medium mb-2">Add Website Content</h4>
+                    <input type="url" id="websiteUrl" 
+                           class="w-full p-2 border rounded-md mb-2"
+                           placeholder="https://your-website.com">
+                    <button onclick="addWebsiteContent()" 
+                            class="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600">
+                        Add Website
+                    </button>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="hideKnowledgeModal()" 
+                            class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Groq Test Modal -->
+    <div id="groqTestModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-4 sm:p-5 border w-11/12 sm:w-4/5 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Test Groq AI</h3>
+                
+                <!-- Test Input -->
+                <div class="mb-4">
+                    <label for="testMessage" class="block text-sm font-medium text-gray-700">Test Message</label>
+                    <textarea id="testMessage" rows="4" 
+                            class="mt-1 p-2 w-full border rounded-md" 
+                            placeholder="Enter a test message...">Hello! How can you help me with my business?</textarea>
+                </div>
+
+                <!-- Response Display -->
+                <div class="mb-4 hidden" id="responseSection">
+                    <label class="block text-sm font-medium text-gray-700">Groq Response:</label>
+                    <div id="groqResponse" class="mt-1 p-3 bg-gray-50 rounded-md text-gray-800"></div>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button onclick="testGroqAPI()" 
+                            class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Test Groq AI</button>
+                    <button onclick="hideGroqTestModal()" 
+                            class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Email tags handling
+        const toInput = document.getElementById('to');
+        const emailTags = document.getElementById('emailTags');
+        let emailList = [];
+
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+        }
+
+        function addEmailTag(email) {
+            const tag = document.createElement('div');
+            tag.className = 'bg-blue-100 text-blue-800 px-2 py-1 rounded-md flex items-center';
+            tag.innerHTML = `
+                <span>${email}</span>
+                <button type="button" class="ml-2 text-blue-600 hover:text-blue-800" onclick="removeEmail('${email}')">×</button>
+            `;
+            emailTags.appendChild(tag);
+        }
+
+        function removeEmail(email) {
+            emailList = emailList.filter(e => e !== email);
+            renderEmailTags();
+        }
+
+        function renderEmailTags() {
+            emailTags.innerHTML = '';
+            emailList.forEach(addEmailTag);
+        }
+
+        // Template handling
+        let templates = [];
+
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/templates');
+                templates = await response.json();
+                updateTemplateSelect();
+                updateTemplateList();
+            } catch (error) {
+                console.error('Error loading templates:', error);
+            }
+        }
+
+        function updateTemplateSelect() {
+            const select = document.getElementById('templateSelect');
+            select.innerHTML = '<option value="">Select template...</option>' +
+                templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        }
+
+        function updateTemplateList() {
+            const list = document.getElementById('templateList');
+            list.innerHTML = templates.map(t => `
+                <div class="border rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="font-semibold">${t.name}</h4>
+                        <button onclick="deleteTemplate(${t.id})" 
+                                class="text-red-600 hover:text-red-800">Delete</button>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        <div>Subject: ${t.subject}</div>
+                        <div class="truncate">Body: ${t.body}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadTemplate() {
+            const templateId = document.getElementById('templateSelect').value;
+            if (!templateId) return;
+            
+            const template = templates.find(t => t.id === parseInt(templateId));
+            if (template) {
+                document.getElementById('subject').value = template.subject;
+                document.getElementById('message').value = template.body;
+            }
+        }
+
+        async function saveAsTemplate() {
+            const name = prompt('Enter template name:');
+            if (!name) return;
+
+            const data = {
+                name,
+                subject: document.getElementById('subject').value,
+                body: document.getElementById('message').value
+            };
+
+            try {
+                const response = await fetch('/templates', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                if (response.ok) {
+                    await loadTemplates();
+                    alert('Template saved successfully!');
+                }
+            } catch (error) {
+                alert('Error saving template: ' + error);
+            }
+        }
+
+        async function deleteTemplate(templateId) {
+            if (!confirm('Are you sure you want to delete this template?')) return;
+
+            try {
+                const response = await fetch(`/templates/${templateId}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    await loadTemplates();
+                }
+            } catch (error) {
+                alert('Error deleting template: ' + error);
+            }
+        }
+
+        function showTemplateModal() {
+            console.log('Opening Template Modal');
+            document.getElementById('templateModal').classList.remove('hidden');
+            loadTemplates();  // Load templates when opening modal
+        }
+
+        function hideTemplateModal() {
+            console.log('Closing Template Modal');
+            document.getElementById('templateModal').classList.add('hidden');
+        }
+
+        function showKnowledgeModal() {
+            console.log('Opening Knowledge Modal');
+            document.getElementById('knowledgeModal').classList.remove('hidden');
+        }
+
+        function hideKnowledgeModal() {
+            console.log('Closing Knowledge Modal');
+            document.getElementById('knowledgeModal').classList.add('hidden');
+        }
+
+        function showGroqTestModal() {
+            console.log('Opening Groq Test Modal');
+            document.getElementById('groqTestModal').classList.remove('hidden');
+        }
+
+        function hideGroqTestModal() {
+            console.log('Closing Groq Test Modal');
+            document.getElementById('groqTestModal').classList.add('hidden');
+        }
+
+        // Knowledge Base Management
+        function addBusinessDescription() {
+            const description = document.getElementById('businessDescription').value;
+            if (!description) {
+                alert('Please enter a business description');
+                return;
+            }
+            
+            console.log("Sending business description:", description);  // Debug log
+            
+            fetch('/knowledge/add/text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: description
+                })
+            })
+            .then(response => {
+                console.log("Response status:", response.status);  // Debug log
+                return response.json().then(data => ({
+                    status: response.status,
+                    body: data
+                }));
+            })
+            .then(({status, body}) => {
+                console.log("Response data:", body);  // Debug log
+                
+                if (status === 200 && body.success) {
+                    alert('Business description saved successfully!');
+                    document.getElementById('businessDescription').value = '';
+                    hideKnowledgeModal();
+                } else {
+                    throw new Error(body.error || 'Failed to save business description');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error saving business description: ' + error.message);
+            });
+        }
+
+        function addTextKnowledge() {
+            const description = document.getElementById('businessDescription').value;
+            if (!description) {
+                alert('Please enter a business description');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('content', description);
+
+            fetch('/knowledge/add/text', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                document.getElementById('businessDescription').value = '';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to save business description');
+            });
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById('knowledgeFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/knowledge/add/file', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                fileInput.value = '';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to upload file');
+            });
+        }
+
+        function addWebsiteContent() {
+            const url = document.getElementById('websiteUrl').value;
+            if (!url) {
+                alert('Please enter a website URL');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('url', url);
+
+            fetch('/knowledge/add/website', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                document.getElementById('websiteUrl').value = '';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to add website content');
+            });
+        }
+
+        // Groq Test Functions
+        function testGroqAPI() {
+            console.log("Testing Groq AI integration...");
+            
+            fetch('/test_grok', {  // Keep the endpoint the same to avoid backend changes
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => {
+                console.log("Response status:", response.status);
+                return response.json().then(data => ({
+                    status: response.status,
+                    body: data
+                }));
+            })
+            .then(({status, body}) => {
+                console.log("Response data:", body);
+                
+                if (status === 200 && body.success) {
+                    alert('Groq AI Test Successful!\n\nResponse: ' + body.response);
+                } else {
+                    throw new Error(body.error || 'Failed to test Groq AI integration');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error testing Groq AI integration: ' + error.message);
+            });
+        }
+
+        // Email handling
+        toInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (value.endsWith(',')) {
+                const email = value.slice(0, -1).trim();
+                if (email && isValidEmail(email) && !emailList.includes(email)) {
+                    emailList.push(email);
+                    renderEmailTags();
+                    e.target.value = '';
+                }
+            }
+        });
+
+        toInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const email = e.target.value.trim();
+                if (email && isValidEmail(email) && !emailList.includes(email)) {
+                    emailList.push(email);
+                    renderEmailTags();
+                    e.target.value = '';
+                }
+            }
+        });
+
+        document.getElementById('emailForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (emailList.length === 0) {
+                alert('Please add at least one recipient email address');
+                return;
+            }
+
+            const data = {
+                to: emailList,
+                subject: document.getElementById('subject').value,
+                message: document.getElementById('message').value
+            };
+
+            try {
+                const response = await fetch('/send_email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    alert('Email sent successfully!');
+                    e.target.reset();
+                    emailList = [];
+                    renderEmailTags();
+                } else {
+                    alert('Error sending email: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error sending email: ' + error);
+            }
+        });
+
+        async function loadEmails() {
+            try {
+                const response = await fetch('/list_emails');
+                const data = await response.json();
+                if (data.status === 'success') {
+                    const emailList = document.getElementById('emailList');
+                    emailList.innerHTML = data.emails.map(email => `
+                        <div class="border-b border-gray-200 py-4">
+                            <div class="font-medium">${email.subject}</div>
+                            <div class="text-sm text-gray-600">${email.sender}</div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading emails:', error);
+            }
+        }
+        
+        
+        // Initialize
+        loadEmails();
+        loadTemplates();
+        
+        // Add mobile menu toggle function
+        function toggleMobileMenu() {
+            const mobileMenu = document.querySelector('.mobile-menu');
+            mobileMenu.classList.toggle('active');
+        }
+        
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const mobileMenu = document.querySelector('.mobile-menu');
+            const mobileMenuButton = document.querySelector('.sm\\:hidden button');
+            
+            if (!mobileMenuButton.contains(event.target) && !mobileMenu.contains(event.target)) {
+                mobileMenu.classList.remove('active');
+            }
+        });
+        
+        // Close mobile menu when window is resized to desktop view
+        window.addEventListener('resize', function() {
+            if (window.innerWidth >= 640) {
+                const mobileMenu = document.querySelector('.mobile-menu');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
