@@ -1,7 +1,7 @@
 google-auth-oauthlib==1.2.0
 google-api-python-client==2.119.0
 streamlit==1.31.1
-supabase==1.0.3
+supabase==0.7.1
 groq==0.4.1
 numpy==1.26.4
 pandas==2.2.1
@@ -10,7 +10,7 @@ python-dotenv==1.0.1
 requests==2.31.0
 email-validator==2.1.0.post1
 base58==2.1.1
-httpx==0.24.1
+httpx==0.23.3
 python-dateutil==2.8.2
 PyPDF2==3.0.1
 google-auth==2.27.0

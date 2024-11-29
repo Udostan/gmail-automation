@@ -7,7 +7,7 @@ import json
 import requests
 from datetime import datetime, timedelta
 import base64
-from supabase import create_client
+from supabase.py import create_client, Client
 import PyPDF2
 import pandas as pd
 from email.mime.text import MIMEText
@@ -45,9 +45,9 @@ try:
         st.stop()
 
     # Supabase configuration
-    supabase = create_client(
-        supabase_url=st.secrets["SUPABASE_URL"],
-        supabase_key=st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"]
     )
 
     # Groq API configuration
