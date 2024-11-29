@@ -138,10 +138,15 @@ def handle_auth():
         
         # Debug logging
         st.write("Debug: Current query parameters:")
-        st.json(query_params)
+        st.write(query_params)
         
         if "code" in query_params:
             st.write("Processing OAuth callback...")
+            
+            # Debug: Show current session state
+            st.write("Debug: Current session state:")
+            st.write({k: v for k, v in st.session_state.items() if k != 'credentials'})
+            
             try:
                 # Create a new flow instance for token exchange
                 flow = Flow.from_client_config(
@@ -150,12 +155,16 @@ def handle_auth():
                     redirect_uri=REDIRECT_URI
                 )
                 
-                # Construct full authorization response URL
-                current_url = REDIRECT_URI
-                if not current_url.endswith('/'):
-                    current_url += '/'
+                # Debug: Show flow configuration
+                st.write("Debug: Flow configuration:")
+                st.write({
+                    "redirect_uri": REDIRECT_URI,
+                    "scopes": SCOPES,
+                    "client_id": CLIENT_CONFIG["web"]["client_id"][-8:],  # Show last 8 chars for security
+                })
                 
-                auth_response = current_url + '?' + '&'.join([
+                # Construct full authorization response URL
+                auth_response = REDIRECT_URI + '?' + '&'.join([
                     f"{key}={value}" 
                     for key, value in query_params.items()
                 ])
@@ -163,11 +172,25 @@ def handle_auth():
                 st.write("Debug: Authorization response URL:")
                 st.write(auth_response)
                 
+                # Debug: Show token request parameters
+                st.write("Debug: Token request parameters:")
+                st.write({
+                    "code": query_params["code"][:8] + "...",  # Show first 8 chars for security
+                    "redirect_uri": REDIRECT_URI,
+                })
+                
                 # Fetch token with state validation
-                flow.fetch_token(
-                    code=query_params["code"],
-                    authorization_response=auth_response
-                )
+                try:
+                    token = flow.fetch_token(
+                        code=query_params["code"],
+                        authorization_response=auth_response
+                    )
+                    st.write("Debug: Token fetch successful")
+                except Exception as token_error:
+                    st.error("Token fetch failed")
+                    st.write("Debug: Token error details:")
+                    st.write(str(token_error))
+                    raise token_error
                 
                 # Store credentials in session state
                 creds_dict = {
@@ -182,12 +205,14 @@ def handle_auth():
                 
                 # Clear URL parameters and redirect
                 st.query_params.clear()
-                st.experimental_rerun()
+                st.rerun()
                 return
                 
             except Exception as e:
-                st.error(f"Error during OAuth callback: {str(e)}")
-                st.write("Debug: Full error details:")
+                st.error("Error during OAuth callback")
+                st.write("Debug: Error type:", type(e).__name__)
+                st.write("Debug: Error message:", str(e))
+                st.write("Debug: Full traceback:")
                 st.code(traceback.format_exc())
                 return
         
@@ -212,8 +237,10 @@ def handle_auth():
         st.info('After authorization, you will be redirected back to this app.')
         
     except Exception as e:
-        st.error(f"Authentication error: {str(e)}")
-        st.write("Debug: Full error details:")
+        st.error("Authentication error")
+        st.write("Debug: Error type:", type(e).__name__)
+        st.write("Debug: Error message:", str(e))
+        st.write("Debug: Full traceback:")
         st.code(traceback.format_exc())
 
 def create_message(sender, to, subject, message_text):
