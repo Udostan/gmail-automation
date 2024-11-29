@@ -50,12 +50,100 @@ GROQ_API_KEY = "your-groq-api-key"
    streamlit run app.py
    ```
 
-## Deployment
+## Deployment to Streamlit Cloud
 
-This application can be deployed on Streamlit Cloud:
+### Prerequisites
+1. GitHub repository with your code
+2. Google Cloud Console project with Gmail API enabled
+3. Groq API account and key
+4. Supabase project
 
-1. Push your code to GitHub
-2. Visit [share.streamlit.io](https://share.streamlit.io)
-3. Connect your GitHub repository
-4. Add your secrets in the Streamlit Cloud dashboard
-5. Deploy!
+### Step-by-Step Deployment Guide
+
+1. **Prepare Your Repository**
+   - Ensure all dependencies are in `requirements.txt`
+   - Remove any sensitive information from code
+   - Commit and push all changes to GitHub
+
+2. **Configure Google OAuth**
+   - Go to Google Cloud Console
+   - Add `https://your-app-url.streamlit.app` to authorized redirect URIs
+   - Add `https://your-app-url.streamlit.app/*` to authorized JavaScript origins
+
+3. **Deploy on Streamlit Cloud**
+   - Visit [share.streamlit.io](https://share.streamlit.io)
+   - Connect your GitHub repository
+   - Select the main branch and the `streamlit_app.py` file
+
+4. **Configure Secrets**
+   In Streamlit Cloud dashboard:
+   - Go to your app settings
+   - Add the following secrets:
+     ```toml
+     SUPABASE_URL = "your-supabase-url"
+     SUPABASE_KEY = "your-supabase-key"
+     GOOGLE_CLIENT_ID = "your-google-client-id"
+     GOOGLE_CLIENT_SECRET = "your-google-client-secret"
+     GOOGLE_REDIRECT_URI = "https://your-app-url.streamlit.app"
+     GROQ_API_KEY = "your-groq-api-key"
+     ```
+
+5. **Verify Deployment**
+   - Check the deployment logs
+   - Test OAuth flow
+   - Verify all features are working
+
+### Security Considerations
+
+1. **OAuth Configuration**
+   - Use correct redirect URIs
+   - Keep client secrets secure
+   - Configure proper scopes
+
+2. **API Keys**
+   - Never commit API keys to the repository
+   - Use environment variables for all sensitive data
+   - Regularly rotate API keys
+
+3. **Data Protection**
+   - Ensure Supabase security rules are properly configured
+   - Implement proper session management
+   - Handle user data according to privacy regulations
+
+### Troubleshooting
+
+1. **OAuth Issues**
+   - Verify redirect URIs in Google Cloud Console
+   - Check OAuth consent screen configuration
+   - Ensure all required scopes are enabled
+
+2. **API Connection Problems**
+   - Verify API keys are correctly set in Streamlit secrets
+   - Check API rate limits
+   - Monitor error logs in Streamlit Cloud
+
+3. **Database Issues**
+   - Verify Supabase connection string
+   - Check database permissions
+   - Monitor database logs
+
+## Maintenance
+
+1. **Regular Updates**
+   - Keep dependencies updated
+   - Monitor security advisories
+   - Update API versions when needed
+
+2. **Monitoring**
+   - Check application logs regularly
+   - Monitor API usage and quotas
+   - Track error rates and performance
+
+3. **Backup**
+   - Regularly backup Supabase database
+   - Keep configuration backups
+   - Document all custom settings
+
+## Support
+
+For issues and feature requests, please create an issue in the GitHub repository.
