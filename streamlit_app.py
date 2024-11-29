@@ -558,16 +558,21 @@ def show_templates_page():
     with st.expander("Create New Template"):
         name = st.text_input("Template Name")
         subject = st.text_input("Subject Template")
-        body = st.text_area("Body Template")
+        content = st.text_area("Email Content")
         
         if st.button("Save Template"):
             try:
                 data = supabase.table('email_templates').insert({
                     "name": name,
                     "subject": subject,
-                    "body": body
+                    "content": content
                 }).execute()
                 st.success("Template saved successfully!")
+                # Clear the form
+                name = ""
+                subject = ""
+                content = ""
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"Error saving template: {str(e)}")
     
@@ -581,7 +586,10 @@ def show_templates_page():
                 for template in templates:
                     st.subheader(template['name'])
                     st.write(f"Subject: {template['subject']}")
-                    st.text_area("Body", template['body'], key=f"template_{template['id']}", disabled=True)
+                    st.text_area("Content", template['content'], key=f"template_{template['id']}", disabled=True)
+                    if st.button("Use Template", key=f"use_{template['id']}"):
+                        st.session_state.email_message = template['content']
+                        st.experimental_rerun()
                     st.divider()
             except Exception as e:
                 st.error(f"Error loading templates: {str(e)}")
