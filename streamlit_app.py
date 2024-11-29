@@ -10,7 +10,7 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 import google.oauth2.credentials
 from googleapiclient.discovery import build
-from supabase import create_client, Client
+from supabase import create_client
 import groq
 import PyPDF2
 import pandas as pd
@@ -49,7 +49,7 @@ try:
         st.stop()
 
     # Supabase configuration
-    supabase: Client = create_client(
+    supabase = create_client(
         st.secrets["SUPABASE_URL"],
         st.secrets["SUPABASE_KEY"]
     )
