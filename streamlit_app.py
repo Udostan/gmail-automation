@@ -28,6 +28,8 @@ try:
         st.session_state.auto_reply_enabled = False
     if 'last_email_check' not in st.session_state:
         st.session_state.last_email_check = None
+    if 'oauth_state' not in st.session_state:
+        st.session_state.oauth_state = None
 
     # Verify secrets are available
     required_secrets = [
@@ -61,6 +63,11 @@ try:
         'https://www.googleapis.com/auth/userinfo.profile'
     ]
 
+    # Ensure redirect URI has trailing slash
+    REDIRECT_URI = st.secrets["OAUTH_REDIRECT_URI"]
+    if not REDIRECT_URI.endswith('/'):
+        REDIRECT_URI += '/'
+
     # Create client configuration dictionary from secrets
     CLIENT_CONFIG = {
         "web": {
@@ -68,8 +75,8 @@ try:
             "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [st.secrets["OAUTH_REDIRECT_URI"]],
-            "javascript_origins": [st.secrets["OAUTH_REDIRECT_URI"].rstrip("/")]
+            "redirect_uris": [REDIRECT_URI],
+            "javascript_origins": [REDIRECT_URI.rstrip("/")]
         }
     }
 
@@ -128,6 +135,11 @@ def handle_auth():
     try:
         # Check if we're in the OAuth callback
         query_params = dict(st.query_params)
+        
+        # Debug logging
+        st.write("Debug: Current query parameters:")
+        st.json(query_params)
+        
         if "code" in query_params:
             st.write("Processing OAuth callback...")
             try:
@@ -135,13 +147,26 @@ def handle_auth():
                 flow = Flow.from_client_config(
                     CLIENT_CONFIG,
                     scopes=SCOPES,
-                    redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
+                    redirect_uri=REDIRECT_URI
                 )
+                
+                # Construct full authorization response URL
+                current_url = REDIRECT_URI
+                if not current_url.endswith('/'):
+                    current_url += '/'
+                
+                auth_response = current_url + '?' + '&'.join([
+                    f"{key}={value}" 
+                    for key, value in query_params.items()
+                ])
+                
+                st.write("Debug: Authorization response URL:")
+                st.write(auth_response)
                 
                 # Fetch token with state validation
                 flow.fetch_token(
                     code=query_params["code"],
-                    authorization_response=st.secrets["OAUTH_REDIRECT_URI"] + "?" + "&".join(f"{k}={v}" for k, v in query_params.items())
+                    authorization_response=auth_response
                 )
                 
                 # Store credentials in session state
@@ -155,13 +180,14 @@ def handle_auth():
                 }
                 st.session_state.credentials = creds_dict
                 
-                # Clear URL parameters
+                # Clear URL parameters and redirect
                 st.query_params.clear()
                 st.experimental_rerun()
                 return
                 
             except Exception as e:
                 st.error(f"Error during OAuth callback: {str(e)}")
+                st.write("Debug: Full error details:")
                 st.code(traceback.format_exc())
                 return
         
@@ -169,7 +195,7 @@ def handle_auth():
         flow = Flow.from_client_config(
             CLIENT_CONFIG,
             scopes=SCOPES,
-            redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
+            redirect_uri=REDIRECT_URI
         )
         
         authorization_url, state = flow.authorization_url(
@@ -178,8 +204,8 @@ def handle_auth():
             prompt='consent'
         )
         
-        # Store state in query params
-        st.query_params["state"] = state
+        # Store state in session state for verification
+        st.session_state.oauth_state = state
         
         st.markdown(f'### Please login with your Google account to get started')
         st.markdown(f'[Login with Google]({authorization_url})')
@@ -187,6 +213,7 @@ def handle_auth():
         
     except Exception as e:
         st.error(f"Authentication error: {str(e)}")
+        st.write("Debug: Full error details:")
         st.code(traceback.format_exc())
 
 def create_message(sender, to, subject, message_text):
