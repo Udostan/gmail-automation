@@ -587,9 +587,22 @@ def show_templates_page():
                     st.subheader(template['name'])
                     st.write(f"Subject: {template['subject']}")
                     st.text_area("Content", template['content'], key=f"template_{template['id']}", disabled=True)
-                    if st.button("Use Template", key=f"use_{template['id']}"):
-                        st.session_state.email_message = template['content']
-                        st.experimental_rerun()
+                    
+                    # Create two columns for the buttons
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Use Template", key=f"use_{template['id']}"):
+                            st.session_state.email_message = template['content']
+                            st.experimental_rerun()
+                    with col2:
+                        if st.button("Delete", key=f"delete_{template['id']}", type="secondary"):
+                            try:
+                                supabase.table('email_templates').delete().eq('id', template['id']).execute()
+                                st.success(f"Template '{template['name']}' deleted successfully!")
+                                st.experimental_rerun()
+                            except Exception as e:
+                                st.error(f"Error deleting template: {str(e)}")
+                    
                     st.divider()
             except Exception as e:
                 st.error(f"Error loading templates: {str(e)}")
