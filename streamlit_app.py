@@ -7,7 +7,7 @@ import json
 import requests
 from datetime import datetime, timedelta
 import base64
-from supabase.py import create_client, Client
+from supabase import Client, create_client
 import PyPDF2
 import pandas as pd
 from email.mime.text import MIMEText
