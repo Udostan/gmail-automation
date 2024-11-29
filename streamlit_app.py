@@ -2,10 +2,13 @@ import streamlit as st
 import os
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 import traceback
+from urllib.parse import urlparse, parse_qs
 
 # Force the port to be 8501
 os.environ['PORT'] = '8501'
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # Basic page configuration
 st.set_page_config(
@@ -43,28 +46,59 @@ try:
     # Initialize session state
     if 'credentials' not in st.session_state:
         st.session_state.credentials = None
+    if 'flow' not in st.session_state:
+        st.session_state.flow = None
     
     # Main app
     st.title("Gmail Automation")
     
+    # Check if we're in the OAuth callback
+    query_params = st.experimental_get_query_params()
+    if "code" in query_params:
+        try:
+            if st.session_state.flow:
+                # Exchange code for credentials
+                st.session_state.flow.fetch_token(code=query_params["code"][0])
+                st.session_state.credentials = st.session_state.flow.credentials
+                st.session_state.flow = None
+                st.experimental_set_query_params()
+                st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Error during OAuth callback: {str(e)}")
+            st.session_state.flow = None
+            st.session_state.credentials = None
+    
     if not st.session_state.credentials:
         st.write("Please login with your Google account to get started")
         if st.button("Login with Google"):
-            flow = Flow.from_client_config(
-                CLIENT_CONFIG,
-                scopes=SCOPES,
-                redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
-            )
-            authorization_url, state = flow.authorization_url(
-                access_type='offline',
-                include_granted_scopes='true'
-            )
-            st.markdown(f'[Click here to authorize]({authorization_url})')
+            try:
+                flow = Flow.from_client_config(
+                    CLIENT_CONFIG,
+                    scopes=SCOPES,
+                    redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
+                )
+                st.session_state.flow = flow
+                authorization_url, _ = flow.authorization_url(
+                    access_type='offline',
+                    include_granted_scopes='true'
+                )
+                st.markdown(f'[Click here to authorize with Google]({authorization_url})')
+            except Exception as e:
+                st.error(f"Error initiating OAuth flow: {str(e)}")
     else:
-        st.success("Successfully logged in!")
-        st.write("You can now use the Gmail Automation features")
-        
-        if st.button("Logout"):
+        try:
+            # Test the credentials by getting user info
+            service = build('gmail', 'v1', credentials=st.session_state.credentials)
+            user_info = service.users().getProfile(userId='me').execute()
+            st.success(f"Successfully logged in as: {user_info['emailAddress']}")
+            
+            if st.button("Logout"):
+                st.session_state.credentials = None
+                st.session_state.flow = None
+                st.experimental_rerun()
+                
+        except Exception as e:
+            st.error("Error accessing Gmail API. Please try logging in again.")
             st.session_state.credentials = None
             st.experimental_rerun()
 
