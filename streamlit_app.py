@@ -1,18 +1,20 @@
 import streamlit as st
 import os
+import json
+import base64
+import requests
+import traceback
+from datetime import datetime, timedelta
+from email.mime.text import MIMEText
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
+import google.oauth2.credentials
 from googleapiclient.discovery import build
-import json
-import requests
-from datetime import datetime, timedelta
-import base64
-from supabase import Client, create_client
+from supabase import create_client
+import groq
 import PyPDF2
 import pandas as pd
-from email.mime.text import MIMEText
 import time
-import traceback
 
 # Enable WSGI mode for OAuth
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -176,29 +178,44 @@ def handle_auth():
                 st.write("Debug: Authorization response URL:")
                 st.write(auth_response)
                 
-                # Debug: Show token request parameters
-                st.write("Debug: Token request parameters:")
-                st.write({
-                    "code": query_params["code"][:8] + "...",  # Show first 8 chars for security
-                    "redirect_uri": REDIRECT_URI,
-                })
-                
                 # Fetch token with state validation
                 try:
                     # Ensure scopes match exactly
-                    flow.oauth2session.scope = query_params.get('scope', '').split(' ')
+                    received_scopes = query_params.get('scope', '').split(' ')
+                    flow.oauth2session.scope = received_scopes
                     
-                    token = flow.fetch_token(
-                        code=query_params["code"],
-                        authorization_response=auth_response,
-                        include_client_id=True
+                    # Construct token endpoint parameters
+                    token_params = {
+                        'client_id': CLIENT_CONFIG['web']['client_id'],
+                        'client_secret': CLIENT_CONFIG['web']['client_secret'],
+                        'code': query_params['code'],
+                        'grant_type': 'authorization_code',
+                        'redirect_uri': REDIRECT_URI
+                    }
+                    
+                    # Make direct token request
+                    token_url = CLIENT_CONFIG['web']['token_uri']
+                    token_response = requests.post(token_url, data=token_params)
+                    
+                    if token_response.status_code != 200:
+                        st.error(f"Token request failed: {token_response.text}")
+                        raise Exception(f"Token request failed: {token_response.text}")
+                    
+                    token_data = token_response.json()
+                    st.write("Debug: Token response:", {k: v for k, v in token_data.items() if k != 'access_token'})
+                    
+                    # Create credentials from token response
+                    flow.credentials = google.oauth2.credentials.Credentials(
+                        token_data['access_token'],
+                        refresh_token=token_data.get('refresh_token'),
+                        token_uri=CLIENT_CONFIG['web']['token_uri'],
+                        client_id=CLIENT_CONFIG['web']['client_id'],
+                        client_secret=CLIENT_CONFIG['web']['client_secret'],
+                        scopes=received_scopes
                     )
+                    
                     st.write("Debug: Token fetch successful")
-                except Warning as w:
-                    # Handle scope change warning - this is actually OK
-                    st.write("Debug: Scope change warning (this is OK):", str(w))
-                    # Continue with the token we got
-                    token = flow.credentials.token
+                    
                 except Exception as token_error:
                     st.error("Token fetch failed")
                     st.write("Debug: Token error details:")
