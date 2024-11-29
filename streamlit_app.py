@@ -12,41 +12,66 @@ import PyPDF2
 import pandas as pd
 from email.mime.text import MIMEText
 import time
+import traceback
+
+# Enable WSGI mode for OAuth
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # Page configuration
 st.set_page_config(page_title="Gmail Automation", layout="wide")
 
-# Initialize session state
-if 'credentials' not in st.session_state:
-    st.session_state.credentials = None
-if 'auto_reply_enabled' not in st.session_state:
-    st.session_state.auto_reply_enabled = False
-if 'last_email_check' not in st.session_state:
-    st.session_state.last_email_check = None
+try:
+    # Initialize session state
+    if 'credentials' not in st.session_state:
+        st.session_state.credentials = None
+    if 'auto_reply_enabled' not in st.session_state:
+        st.session_state.auto_reply_enabled = False
+    if 'last_email_check' not in st.session_state:
+        st.session_state.last_email_check = None
 
-# Supabase configuration
-supabase = create_client(
-    st.secrets["SUPABASE_URL"],
-    st.secrets["SUPABASE_KEY"]
-)
+    # Verify secrets are available
+    required_secrets = [
+        "SUPABASE_URL",
+        "SUPABASE_KEY",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "OAUTH_REDIRECT_URI",
+        "GROQ_API_KEY"
+    ]
+    
+    missing_secrets = [secret for secret in required_secrets if secret not in st.secrets]
+    if missing_secrets:
+        st.error(f"Missing required secrets: {', '.join(missing_secrets)}")
+        st.stop()
 
-# Groq API configuration
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+    # Supabase configuration
+    supabase = create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"]
+    )
 
-# OAuth 2.0 configuration
-SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+    # Groq API configuration
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Create client configuration dictionary from secrets
-CLIENT_CONFIG = {
-    "web": {
-        "client_id": st.secrets["GOOGLE_CLIENT_ID"],
-        "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "redirect_uris": [st.secrets["OAUTH_REDIRECT_URI"]],
+    # OAuth 2.0 configuration
+    SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+
+    # Create client configuration dictionary from secrets
+    CLIENT_CONFIG = {
+        "web": {
+            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [st.secrets["OAUTH_REDIRECT_URI"]],
+        }
     }
-}
+
+except Exception as e:
+    st.error(f"Initialization Error: {str(e)}")
+    st.error(f"Traceback: {traceback.format_exc()}")
+    st.stop()
 
 def get_ai_response(prompt, context=""):
     try:
