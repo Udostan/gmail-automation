@@ -39,7 +39,8 @@ try:
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "OAUTH_REDIRECT_URI",
-        "GROQ_API_KEY"
+        "GROQ_API_KEY",
+        "google_oauth_config"
     ]
     
     missing_secrets = [secret for secret in required_secrets if secret not in st.secrets]
@@ -69,23 +70,6 @@ try:
     REDIRECT_URI = st.secrets["OAUTH_REDIRECT_URI"]
     if not REDIRECT_URI.endswith('/'):
         REDIRECT_URI += '/'
-
-    # Create client configuration dictionary from secrets
-    CLIENT_CONFIG = {
-        "web": {
-            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
-            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [REDIRECT_URI],
-            "javascript_origins": [REDIRECT_URI.rstrip("/")]
-        }
-    }
-
-except Exception as e:
-    st.error(f"Initialization Error: {str(e)}")
-    st.error(f"Traceback: {traceback.format_exc()}")
-    st.stop()
 
 def get_ai_response(prompt, context=""):
     try:
@@ -134,141 +118,97 @@ def main():
             show_settings_page()
 
 def handle_auth():
-    try:
-        # Check if we're in the OAuth callback
-        query_params = dict(st.query_params)
-        
-        # Debug logging
-        st.write("Debug: Current query parameters:")
-        st.write(query_params)
-        
-        if "code" in query_params:
+    # Initialize session state for credentials
+    if 'credentials' not in st.session_state:
+        st.session_state.credentials = None
+    
+    # If we already have valid credentials, return them
+    if st.session_state.credentials:
+        try:
+            # Try to build the service with existing credentials
+            service = build('gmail', 'v1', credentials=st.session_state.credentials)
+            # Test the credentials with a simple API call
+            service.users().getProfile(userId='me').execute()
+            return st.session_state.credentials
+        except Exception:
+            # If there's any error, clear the credentials and continue with auth flow
+            st.session_state.credentials = None
+    
+    # Get query parameters
+    query_params = st.experimental_get_query_params()
+    
+    # Debug output
+    st.write("Debug: Current query parameters:\n")
+    st.json(query_params)
+    
+    # Initialize OAuth flow
+    flow = Flow.from_client_config(
+        client_config=json.loads(st.secrets["google_oauth_config"]),
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
+    
+    # If we have an authorization code
+    if "code" in query_params:
+        try:
             st.write("Processing OAuth callback...")
             
-            # Debug: Show current session state
-            st.write("Debug: Current session state:")
-            st.write({k: v for k, v in st.session_state.items() if k != 'credentials'})
+            # Debug session state
+            st.write("\nDebug: Current session state:\n")
+            st.json({k: str(v) for k, v in st.session_state.items()})
             
+            # Debug flow configuration
+            st.write("\nDebug: Flow configuration:\n")
+            st.json({
+                "redirect_uri": flow.redirect_uri,
+                "scopes": flow.scopes,
+                "client_id": flow.client_config['client_id']
+            })
+            
+            # Get authorization response
+            authorization_response = str(st.experimental_get_query_params())
+            st.write("\nDebug: Authorization response:\n")
+            st.write(authorization_response)
+            
+            # Exchange code for token
             try:
-                # Create a new flow instance for token exchange
-                flow = Flow.from_client_config(
-                    CLIENT_CONFIG,
-                    scopes=SCOPES,
-                    redirect_uri=REDIRECT_URI
-                )
+                flow.fetch_token(authorization_response=st.experimental_get_url())
+                st.session_state.credentials = flow.credentials
                 
-                # Debug: Show flow configuration
-                st.write("Debug: Flow configuration:")
-                st.write({
-                    "redirect_uri": REDIRECT_URI,
-                    "scopes": SCOPES,
-                    "client_id": CLIENT_CONFIG["web"]["client_id"][-8:],  # Show last 8 chars for security
-                })
+                # Clear the URL parameters
+                st.experimental_set_query_params()
                 
-                # Construct full authorization response URL
-                auth_response = REDIRECT_URI + '?' + '&'.join([
-                    f"{key}={value}" 
-                    for key, value in query_params.items()
-                ])
-                
-                st.write("Debug: Authorization response URL:")
-                st.write(auth_response)
-                
-                # Fetch token with state validation
-                try:
-                    # Ensure scopes match exactly
-                    received_scopes = query_params.get('scope', '').split(' ')
-                    flow.oauth2session.scope = received_scopes
-                    
-                    # Construct token endpoint parameters
-                    token_params = {
-                        'client_id': CLIENT_CONFIG['web']['client_id'],
-                        'client_secret': CLIENT_CONFIG['web']['client_secret'],
-                        'code': query_params['code'],
-                        'grant_type': 'authorization_code',
-                        'redirect_uri': REDIRECT_URI
-                    }
-                    
-                    # Make direct token request
-                    token_url = CLIENT_CONFIG['web']['token_uri']
-                    token_response = requests.post(token_url, data=token_params)
-                    
-                    if token_response.status_code != 200:
-                        st.error(f"Token request failed: {token_response.text}")
-                        raise Exception(f"Token request failed: {token_response.text}")
-                    
-                    token_data = token_response.json()
-                    st.write("Debug: Token response:", {k: v for k, v in token_data.items() if k != 'access_token'})
-                    
-                    # Create credentials directly
-                    credentials = google.oauth2.credentials.Credentials(
-                        token=token_data['access_token'],
-                        refresh_token=token_data.get('refresh_token'),
-                        token_uri=CLIENT_CONFIG['web']['token_uri'],
-                        client_id=CLIENT_CONFIG['web']['client_id'],
-                        client_secret=CLIENT_CONFIG['web']['client_secret'],
-                        scopes=received_scopes
-                    )
-                    
-                    # Store credentials in session state
-                    st.session_state.credentials = {
-                        'token': credentials.token,
-                        'refresh_token': credentials.refresh_token,
-                        'token_uri': credentials.token_uri,
-                        'client_id': credentials.client_id,
-                        'client_secret': credentials.client_secret,
-                        'scopes': credentials.scopes
-                    }
-                    
-                    st.write("Debug: Token fetch successful")
-                    
-                except Exception as token_error:
-                    st.error("Token fetch failed")
-                    st.write("Debug: Token error details:")
-                    st.write(str(token_error))
-                    st.write("Debug: Full traceback:")
-                    st.code(traceback.format_exc())
-                    raise token_error
-                
-                # Clear URL parameters and redirect
-                st.query_params.clear()
-                st.rerun()
-                return
+                # Force a rerun to clear the authorization code from URL
+                st.experimental_rerun()
                 
             except Exception as e:
                 st.error("Error during OAuth callback")
-                st.write("Debug: Error type:", type(e).__name__)
-                st.write("Debug: Error message:", str(e))
-                st.write("Debug: Full traceback:")
+                st.error(f"Error type: {type(e)}")
+                st.error(f"Error message: {str(e)}")
+                st.error("Debug: Full traceback:")
                 st.code(traceback.format_exc())
-                return
+                raise e
         
-        # If not in callback, start the OAuth flow
-        flow = Flow.from_client_config(
-            CLIENT_CONFIG,
-            scopes=SCOPES,
-            redirect_uri=REDIRECT_URI
-        )
-        
-        authorization_url, state = flow.authorization_url(
-            access_type='offline',
-            include_granted_scopes='true',
-            prompt='consent'
-        )
-        
-        # Store state in session state for verification
-        st.session_state.oauth_state = state
-        
-        st.markdown(f'### Please login with your Google account to get started')
-        st.markdown(f'[Login with Google]({authorization_url})')
-        st.info('After authorization, you will be redirected back to this app.')
-        
-    except Exception as e:
-        st.error("Authentication error")
-        st.write("Debug: Error type:", type(e).__name__)
-        st.write("Debug: Error message:", str(e))
-        st.write("Debug: Full traceback:")
-        st.code(traceback.format_exc())
+        except Exception as e:
+            st.error("Error during OAuth callback")
+            st.error(f"Error type: {type(e)}")
+            st.error(f"Error message: {str(e)}")
+            st.error("Debug: Full traceback:")
+            st.code(traceback.format_exc())
+            # Clear any partial credentials
+            st.session_state.credentials = None
+            # Clear the URL parameters
+            st.experimental_set_query_params()
+            raise e
+    
+    # If we don't have credentials or authorization code, start the OAuth flow
+    if not st.session_state.credentials:
+        auth_url, _ = flow.authorization_url(prompt='consent')
+        st.write("Please login with your Google account to get started")
+        st.markdown(f'<a href="{auth_url}" target="_self"><button>Login with Google</button></a>', unsafe_allow_html=True)
+        return None
+    
+    return st.session_state.credentials
 
 def create_message(sender, to, subject, message_text):
     try:
