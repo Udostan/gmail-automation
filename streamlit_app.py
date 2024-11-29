@@ -55,7 +55,11 @@ try:
     GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
     # OAuth 2.0 configuration
-    SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+    SCOPES = [
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile'
+    ]
 
     # Create client configuration dictionary from secrets
     CLIENT_CONFIG = {
@@ -65,6 +69,7 @@ try:
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "redirect_uris": [st.secrets["OAUTH_REDIRECT_URI"]],
+            "javascript_origins": [st.secrets["OAUTH_REDIRECT_URI"].rstrip("/")]
         }
     }
 
@@ -133,8 +138,11 @@ def handle_auth():
                     redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
                 )
                 
-                # Exchange code for credentials
-                flow.fetch_token(code=query_params["code"][0])
+                # Fetch token with state validation
+                flow.fetch_token(
+                    code=query_params["code"][0],
+                    authorization_response=st.secrets["OAUTH_REDIRECT_URI"] + "?" + "&".join(f"{k}={v[0]}" for k, v in query_params.items())
+                )
                 
                 # Store credentials in session state
                 creds_dict = {
@@ -164,12 +172,14 @@ def handle_auth():
             redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
         )
         
-        authorization_url, _ = flow.authorization_url(
+        authorization_url, state = flow.authorization_url(
             access_type='offline',
-            include_granted_scopes='true'
+            include_granted_scopes='true',
+            prompt='consent'
         )
         
-        st.markdown(f'[Authorize with Google]({authorization_url})')
+        st.markdown(f'### Please login with your Google account to get started')
+        st.markdown(f'[Login with Google]({authorization_url})')
         st.info('After authorization, you will be redirected back to this app.')
         
     except Exception as e:
