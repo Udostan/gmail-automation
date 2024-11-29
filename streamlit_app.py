@@ -49,10 +49,7 @@ try:
         st.stop()
 
     # Supabase configuration
-    supabase = create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_KEY"]
-    )
+    supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
     # Groq API configuration
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
