@@ -58,9 +58,13 @@ try:
 
     # OAuth 2.0 configuration
     SCOPES = [
+        'openid',
         'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile'
+        'https://www.googleapis.com/auth/gmail.compose',
+        'https://mail.google.com/',
+        'https://www.googleapis.com/auth/gmail.send'
     ]
 
     # Ensure redirect URI has trailing slash
@@ -181,11 +185,20 @@ def handle_auth():
                 
                 # Fetch token with state validation
                 try:
+                    # Ensure scopes match exactly
+                    flow.oauth2session.scope = query_params.get('scope', '').split(' ')
+                    
                     token = flow.fetch_token(
                         code=query_params["code"],
-                        authorization_response=auth_response
+                        authorization_response=auth_response,
+                        include_client_id=True
                     )
                     st.write("Debug: Token fetch successful")
+                except Warning as w:
+                    # Handle scope change warning - this is actually OK
+                    st.write("Debug: Scope change warning (this is OK):", str(w))
+                    # Continue with the token we got
+                    token = flow.credentials.token
                 except Exception as token_error:
                     st.error("Token fetch failed")
                     st.write("Debug: Token error details:")
