@@ -5,6 +5,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 import traceback
 import json
+import secrets
 
 # Force the port to be 8501
 os.environ['PORT'] = '8501'
@@ -53,24 +54,39 @@ try:
     # Initialize session state
     if 'credentials' not in st.session_state:
         st.session_state.credentials = None
+    if 'oauth_state' not in st.session_state:
+        st.session_state.oauth_state = None
     
     # Show session state
     st.sidebar.write("Session State:")
     st.sidebar.write("Has Credentials:", st.session_state.credentials is not None)
+    st.sidebar.write("OAuth State:", st.session_state.oauth_state)
     
     # Main app
     st.title("Gmail Automation")
     
     # Check if we're in the OAuth callback
     query_params = st.experimental_get_query_params()
-    if "code" in query_params:
+    
+    if "code" in query_params and "state" in query_params:
+        received_state = query_params["state"][0]
+        st.sidebar.write(f"Received state: {received_state}")
+        st.sidebar.write(f"Stored state: {st.session_state.oauth_state}")
+        
+        if received_state != st.session_state.oauth_state:
+            st.error("Invalid OAuth state")
+            st.session_state.oauth_state = None
+            st.experimental_set_query_params()
+            st.rerun()
+        
         st.sidebar.write("Received OAuth Code")
         try:
             # Create a new flow instance for token exchange
             flow = Flow.from_client_config(
                 CLIENT_CONFIG,
                 scopes=SCOPES,
-                redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
+                redirect_uri=st.secrets["OAUTH_REDIRECT_URI"],
+                state=received_state
             )
             
             # Exchange code for credentials
@@ -87,7 +103,8 @@ try:
             }
             st.session_state.credentials = Credentials(**creds_dict)
             
-            # Clear URL parameters
+            # Clear state and URL parameters
+            st.session_state.oauth_state = None
             st.experimental_set_query_params()
             st.rerun()
             
@@ -96,17 +113,26 @@ try:
             st.error(f"Error during OAuth callback: {str(e)}")
             st.code(traceback.format_exc())
             st.session_state.credentials = None
+            st.session_state.oauth_state = None
+            st.experimental_set_query_params()
     
     if not st.session_state.credentials:
         st.write("Please login with your Google account to get started")
         if st.button("Login with Google"):
             try:
                 st.sidebar.write("Initiating OAuth Flow")
+                
+                # Generate and store state
+                state = secrets.token_urlsafe(32)
+                st.session_state.oauth_state = state
+                
                 flow = Flow.from_client_config(
                     CLIENT_CONFIG,
                     scopes=SCOPES,
-                    redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
+                    redirect_uri=st.secrets["OAUTH_REDIRECT_URI"],
+                    state=state
                 )
+                
                 authorization_url, _ = flow.authorization_url(
                     access_type='offline',
                     include_granted_scopes='true'
@@ -126,6 +152,7 @@ try:
             
             if st.button("Logout"):
                 st.session_state.credentials = None
+                st.session_state.oauth_state = None
                 st.rerun()
                 
         except Exception as e:
@@ -133,6 +160,7 @@ try:
             st.error("Error accessing Gmail API. Please try logging in again.")
             st.code(traceback.format_exc())
             st.session_state.credentials = None
+            st.session_state.oauth_state = None
             st.rerun()
 
 except Exception as e:
