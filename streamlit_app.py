@@ -201,9 +201,9 @@ def handle_auth():
                     token_data = token_response.json()
                     st.write("Debug: Token response:", {k: v for k, v in token_data.items() if k != 'access_token'})
                     
-                    # Create credentials from token response
-                    flow.credentials = google.oauth2.credentials.Credentials(
-                        token_data['access_token'],
+                    # Create credentials directly
+                    credentials = google.oauth2.credentials.Credentials(
+                        token=token_data['access_token'],
                         refresh_token=token_data.get('refresh_token'),
                         token_uri=CLIENT_CONFIG['web']['token_uri'],
                         client_id=CLIENT_CONFIG['web']['client_id'],
@@ -211,24 +211,25 @@ def handle_auth():
                         scopes=received_scopes
                     )
                     
+                    # Store credentials in session state
+                    st.session_state.credentials = {
+                        'token': credentials.token,
+                        'refresh_token': credentials.refresh_token,
+                        'token_uri': credentials.token_uri,
+                        'client_id': credentials.client_id,
+                        'client_secret': credentials.client_secret,
+                        'scopes': credentials.scopes
+                    }
+                    
                     st.write("Debug: Token fetch successful")
                     
                 except Exception as token_error:
                     st.error("Token fetch failed")
                     st.write("Debug: Token error details:")
                     st.write(str(token_error))
+                    st.write("Debug: Full traceback:")
+                    st.code(traceback.format_exc())
                     raise token_error
-                
-                # Store credentials in session state
-                creds_dict = {
-                    'token': flow.credentials.token,
-                    'refresh_token': flow.credentials.refresh_token,
-                    'token_uri': flow.credentials.token_uri,
-                    'client_id': flow.credentials.client_id,
-                    'client_secret': flow.credentials.client_secret,
-                    'scopes': flow.credentials.scopes
-                }
-                st.session_state.credentials = creds_dict
                 
                 # Clear URL parameters and redirect
                 st.query_params.clear()
