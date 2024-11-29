@@ -36,7 +36,17 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # OAuth 2.0 configuration
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
-CLIENT_SECRETS_FILE = "credentials.json"
+
+# Create client configuration dictionary from secrets
+CLIENT_CONFIG = {
+    "web": {
+        "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+        "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "redirect_uris": [st.secrets["OAUTH_REDIRECT_URI"]],
+    }
+}
 
 def get_ai_response(prompt, context=""):
     try:
@@ -86,11 +96,7 @@ def main():
 
 def handle_auth():
     try:
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRETS_FILE,
-            scopes=SCOPES,
-            redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
-        )
+        flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, redirect_uri=st.secrets["OAUTH_REDIRECT_URI"])
         authorization_url, state = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true'
