@@ -386,6 +386,12 @@ def show_home_page():
         
         # Email composition with AI assistance
         with st.expander("Compose Email"):
+            # Initialize session state for email composition
+            if 'email_message' not in st.session_state:
+                st.session_state.email_message = ""
+            if 'ai_suggestion' not in st.session_state:
+                st.session_state.ai_suggestion = ""
+            
             to = st.text_input("To (separate multiple emails with commas)")
             subject = st.text_input("Subject")
             
@@ -393,12 +399,12 @@ def show_home_page():
             col1, col2 = st.columns(2)
             
             with col1:
-                message = st.text_area("Message", height=300)
+                message = st.text_area("Message", value=st.session_state.email_message, height=300, key="message_input")
+                # Update session state when message changes
+                st.session_state.email_message = message
                 
             with col2:
                 st.subheader("AI Suggestions")
-                if 'ai_suggestion' not in st.session_state:
-                    st.session_state.ai_suggestion = ""
                 
                 if st.button("Get AI Suggestions"):
                     prompt = f"Suggest improvements for this email:\n\nSubject: {subject}\n\n{message}"
@@ -410,7 +416,7 @@ def show_home_page():
                     st.info("AI Suggestions:")
                     st.write(st.session_state.ai_suggestion)
                     if st.button("Apply Suggestions"):
-                        message = st.session_state.ai_suggestion
+                        st.session_state.email_message = st.session_state.ai_suggestion
                         st.experimental_rerun()
             
             if st.button("Send Email"):
@@ -437,9 +443,7 @@ def show_home_page():
                             st.success("Email sent successfully!")
                             # Clear the form
                             st.session_state.ai_suggestion = ""
-                            to = ""
-                            subject = ""
-                            message = ""
+                            st.session_state.email_message = ""
                             st.experimental_rerun()
                     except Exception as e:
                         st.error(f"Error sending email: {str(e)}")
