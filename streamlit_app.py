@@ -127,7 +127,7 @@ def main():
 def handle_auth():
     try:
         # Check if we're in the OAuth callback
-        query_params = st.experimental_get_query_params()
+        query_params = dict(st.query_params)
         if "code" in query_params:
             st.write("Processing OAuth callback...")
             try:
@@ -140,8 +140,8 @@ def handle_auth():
                 
                 # Fetch token with state validation
                 flow.fetch_token(
-                    code=query_params["code"][0],
-                    authorization_response=st.secrets["OAUTH_REDIRECT_URI"] + "?" + "&".join(f"{k}={v[0]}" for k, v in query_params.items())
+                    code=query_params["code"],
+                    authorization_response=st.secrets["OAUTH_REDIRECT_URI"] + "?" + "&".join(f"{k}={v}" for k, v in query_params.items())
                 )
                 
                 # Store credentials in session state
@@ -156,7 +156,7 @@ def handle_auth():
                 st.session_state.credentials = creds_dict
                 
                 # Clear URL parameters
-                st.experimental_set_query_params()
+                st.query_params.clear()
                 st.experimental_rerun()
                 return
                 
@@ -177,6 +177,9 @@ def handle_auth():
             include_granted_scopes='true',
             prompt='consent'
         )
+        
+        # Store state in query params
+        st.query_params["state"] = state
         
         st.markdown(f'### Please login with your Google account to get started')
         st.markdown(f'[Login with Google]({authorization_url})')
