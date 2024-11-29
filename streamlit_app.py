@@ -388,31 +388,63 @@ def show_home_page():
         with st.expander("Compose Email"):
             to = st.text_input("To (separate multiple emails with commas)")
             subject = st.text_input("Subject")
-            message = st.text_area("Message")
             
-            if st.button("Get AI Suggestions"):
-                prompt = f"Suggest improvements for this email:\n\nSubject: {subject}\n\n{message}"
-                suggestions = get_ai_response(prompt)
-                if suggestions:
+            # Create columns for message input and AI suggestions
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                message = st.text_area("Message", height=300)
+                
+            with col2:
+                st.subheader("AI Suggestions")
+                if 'ai_suggestion' not in st.session_state:
+                    st.session_state.ai_suggestion = ""
+                
+                if st.button("Get AI Suggestions"):
+                    prompt = f"Suggest improvements for this email:\n\nSubject: {subject}\n\n{message}"
+                    suggestions = get_ai_response(prompt)
+                    if suggestions:
+                        st.session_state.ai_suggestion = suggestions
+                
+                if st.session_state.ai_suggestion:
                     st.info("AI Suggestions:")
-                    st.write(suggestions)
+                    st.write(st.session_state.ai_suggestion)
+                    if st.button("Apply Suggestions"):
+                        message = st.session_state.ai_suggestion
+                        st.experimental_rerun()
             
             if st.button("Send Email"):
-                try:
-                    email_msg = create_message(
-                        'me',
-                        [email.strip() for email in to.split(',')],
-                        subject,
-                        message
-                    )
-                    
-                    if email_msg:
-                        service.users().messages().send(userId='me', body=email_msg).execute()
-                        st.success("Email sent successfully!")
-                except Exception as e:
-                    st.error(f"Error sending email: {str(e)}")
-                    st.code(traceback.format_exc())
-                    
+                if not to or not subject or not message:
+                    st.error("Please fill in all fields (To, Subject, and Message)")
+                else:
+                    try:
+                        # Split and clean email addresses
+                        to_addresses = [email.strip() for email in to.split(',') if email.strip()]
+                        
+                        if not to_addresses:
+                            st.error("Please enter at least one valid email address")
+                            return
+                        
+                        email_msg = create_message(
+                            'me',
+                            to_addresses,
+                            subject,
+                            message
+                        )
+                        
+                        if email_msg:
+                            service.users().messages().send(userId='me', body=email_msg).execute()
+                            st.success("Email sent successfully!")
+                            # Clear the form
+                            st.session_state.ai_suggestion = ""
+                            to = ""
+                            subject = ""
+                            message = ""
+                            st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Error sending email: {str(e)}")
+                        st.code(traceback.format_exc())
+    
     except Exception as e:
         st.error(f"Error loading dashboard: {str(e)}")
         st.code(traceback.format_exc())
