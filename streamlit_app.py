@@ -10,7 +10,7 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 import google.oauth2.credentials
 from googleapiclient.discovery import build
-from supabase import create_client
+from supabase import create_client, Client
 import groq
 import PyPDF2
 import pandas as pd
