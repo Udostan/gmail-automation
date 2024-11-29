@@ -1,29 +1,20 @@
+import sys
+import traceback
 import streamlit as st
 
-# Basic page configuration
-st.set_page_config(page_title="Gmail Automation", layout="wide")
-
-# Display basic page
-st.title("Gmail Automation")
-st.write("Basic initialization test")
-
-# Test secrets access
 try:
-    # Verify secrets are available
-    required_secrets = [
-        "SUPABASE_URL",
-        "SUPABASE_KEY",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "OAUTH_REDIRECT_URI",
-        "GROQ_API_KEY"
-    ]
+    # Basic page configuration
+    st.set_page_config(page_title="Gmail Automation Test", layout="wide")
     
-    missing_secrets = [secret for secret in required_secrets if secret not in st.secrets]
-    if missing_secrets:
-        st.error(f"Missing required secrets: {', '.join(missing_secrets)}")
-    else:
-        st.success("All required secrets are available")
-        
+    # Display version information
+    st.write(f"Python version: {sys.version}")
+    st.write(f"Streamlit version: {st.__version__}")
+    
+    # Basic content
+    st.title("Gmail Automation")
+    st.write("Basic test page")
+    
 except Exception as e:
-    st.error(f"Error checking secrets: {str(e)}")
+    st.write("Error during initialization:")
+    st.error(str(e))
+    st.code(traceback.format_exc())
