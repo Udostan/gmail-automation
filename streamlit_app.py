@@ -4,7 +4,7 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 import traceback
-from urllib.parse import urlparse, parse_qs
+import json
 
 # Force the port to be 8501
 os.environ['PORT'] = '8501'
@@ -53,13 +53,10 @@ try:
     # Initialize session state
     if 'credentials' not in st.session_state:
         st.session_state.credentials = None
-    if 'flow' not in st.session_state:
-        st.session_state.flow = None
     
     # Show session state
     st.sidebar.write("Session State:")
     st.sidebar.write("Has Credentials:", st.session_state.credentials is not None)
-    st.sidebar.write("Has Flow:", st.session_state.flow is not None)
     
     # Main app
     st.title("Gmail Automation")
@@ -69,21 +66,35 @@ try:
     if "code" in query_params:
         st.sidebar.write("Received OAuth Code")
         try:
-            if st.session_state.flow:
-                st.sidebar.write("Processing OAuth Callback")
-                # Exchange code for credentials
-                st.session_state.flow.fetch_token(code=query_params["code"][0])
-                st.session_state.credentials = st.session_state.flow.credentials
-                st.session_state.flow = None
-                st.experimental_set_query_params()
-                st.rerun()
-            else:
-                st.sidebar.error("No flow found in session state during callback")
+            # Create a new flow instance for token exchange
+            flow = Flow.from_client_config(
+                CLIENT_CONFIG,
+                scopes=SCOPES,
+                redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
+            )
+            
+            # Exchange code for credentials
+            flow.fetch_token(code=query_params["code"][0])
+            
+            # Store credentials in session state
+            creds_dict = {
+                'token': flow.credentials.token,
+                'refresh_token': flow.credentials.refresh_token,
+                'token_uri': flow.credentials.token_uri,
+                'client_id': flow.credentials.client_id,
+                'client_secret': flow.credentials.client_secret,
+                'scopes': flow.credentials.scopes
+            }
+            st.session_state.credentials = Credentials(**creds_dict)
+            
+            # Clear URL parameters
+            st.experimental_set_query_params()
+            st.rerun()
+            
         except Exception as e:
             st.sidebar.error(f"OAuth Callback Error: {str(e)}")
             st.error(f"Error during OAuth callback: {str(e)}")
             st.code(traceback.format_exc())
-            st.session_state.flow = None
             st.session_state.credentials = None
     
     if not st.session_state.credentials:
@@ -96,7 +107,6 @@ try:
                     scopes=SCOPES,
                     redirect_uri=st.secrets["OAUTH_REDIRECT_URI"]
                 )
-                st.session_state.flow = flow
                 authorization_url, _ = flow.authorization_url(
                     access_type='offline',
                     include_granted_scopes='true'
@@ -116,7 +126,6 @@ try:
             
             if st.button("Logout"):
                 st.session_state.credentials = None
-                st.session_state.flow = None
                 st.rerun()
                 
         except Exception as e:
