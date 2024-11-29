@@ -1,32 +1,61 @@
-# Gmail Automation Web App
+# Gmail Automation with AI
 
-This web application allows you to automate various Gmail operations using the Gmail API.
-
-## Setup Instructions
-
-1. Create a Google Cloud Project and enable the Gmail API
-   - Go to [Google Cloud Console](https://console.cloud.google.com)
-   - Create a new project
-   - Enable the Gmail API
-   - Create OAuth 2.0 credentials (download as credentials.json)
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Place your credentials.json file in the project root directory
-
-4. Run the application:
-```bash
-python app.py
-```
-
-5. Visit http://localhost:5000 in your browser
+A Streamlit-based application that automates Gmail interactions using AI-powered responses and intelligent email management.
 
 ## Features
-- OAuth2 authentication with Gmail
-- View emails
-- Send emails
-- Search emails
-- Automated email operations
+
+- Gmail OAuth integration
+- AI-powered email auto-replies using Groq API
+- Knowledge base integration with Supabase
+- Email template management
+- Automated email monitoring and responses
+- Professional email composition interface
+
+## Requirements
+
+- Python 3.12
+- Streamlit
+- Google Gmail API credentials
+- Groq API key
+- Supabase account and credentials
+
+## Environment Variables
+
+Create a `.streamlit/secrets.toml` file with the following:
+
+```toml
+# Supabase credentials
+SUPABASE_URL = "your-supabase-url"
+SUPABASE_KEY = "your-supabase-key"
+
+# Google OAuth Settings
+GOOGLE_CLIENT_ID = "your-google-client-id"
+GOOGLE_CLIENT_SECRET = "your-google-client-secret"
+GOOGLE_REDIRECT_URI = "your-redirect-uri"
+
+# Groq API key
+GROQ_API_KEY = "your-groq-api-key"
+```
+
+## Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Set up your environment variables
+4. Run the application:
+   ```bash
+   streamlit run app.py
+   ```
+
+## Deployment
+
+This application can be deployed on Streamlit Cloud:
+
+1. Push your code to GitHub
+2. Visit [share.streamlit.io](https://share.streamlit.io)
+3. Connect your GitHub repository
+4. Add your secrets in the Streamlit Cloud dashboard
+5. Deploy!
