@@ -46,8 +46,8 @@ try:
 
     # Supabase configuration
     supabase = create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_KEY"]
+        supabase_url=st.secrets["SUPABASE_URL"],
+        supabase_key=st.secrets["SUPABASE_KEY"]
     )
 
     # Groq API configuration
