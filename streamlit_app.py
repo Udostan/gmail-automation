@@ -4,17 +4,16 @@ import json
 import base64
 import requests
 import traceback
-from datetime import datetime, timedelta
+import time
+from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
-import google.oauth2.credentials
 from googleapiclient.discovery import build
-from supabase import create_client
-import groq
-import PyPDF2
+from supabase import create_client, Client
+from groq import Groq
 import pandas as pd
-import time
+import PyPDF2
 
 # Enable WSGI mode for OAuth
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -583,10 +582,14 @@ def show_templates_page():
                 response = supabase.table('email_templates').select("*").execute()
                 templates = response.data
                 
+                if not templates:
+                    st.info("No templates found. Create one above!")
+                
                 for template in templates:
                     st.subheader(template['name'])
                     st.write(f"Subject: {template['subject']}")
                     st.text_area("Content", template['content'], key=f"template_{template['id']}", disabled=True)
+                    st.write(f"Template ID: {template['id']}")  # Debug line
                     
                     # Create two columns for the buttons
                     col1, col2 = st.columns(2)
@@ -597,15 +600,21 @@ def show_templates_page():
                     with col2:
                         if st.button("Delete", key=f"delete_{template['id']}", type="secondary"):
                             try:
-                                supabase.table('email_templates').delete().eq('id', template['id']).execute()
+                                # Debug output
+                                st.write(f"Attempting to delete template with ID: {template['id']}")
+                                result = supabase.table('email_templates').delete().eq('id', template['id']).execute()
+                                st.write(f"Delete result: {result}")  # Debug line
                                 st.success(f"Template '{template['name']}' deleted successfully!")
+                                time.sleep(1)  # Give the database a moment to process
                                 st.experimental_rerun()
                             except Exception as e:
                                 st.error(f"Error deleting template: {str(e)}")
+                                st.error(f"Full error details: {traceback.format_exc()}")  # Debug line
                     
                     st.divider()
             except Exception as e:
                 st.error(f"Error loading templates: {str(e)}")
+                st.error(f"Full error details: {traceback.format_exc()}")  # Debug line
 
 if __name__ == "__main__":
     main()
