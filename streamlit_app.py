@@ -298,6 +298,8 @@ https://techsolutions.com""")
                     })
                     st.success("Profile saved successfully.")
                     st.rerun()
+        except Exception as e:
+            st.error(f"Error getting user profile: {str(e)}")
     
     st.stop()
 
