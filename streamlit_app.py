@@ -33,8 +33,8 @@ def get_gmail_service():
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "redirect_uris": [
-                        "http://localhost:8501/",
-                        "https://gmail-automation-3pyuzeeckset4gcqkjbxsj.streamlit.app/"
+                        "http://localhost:8501",
+                        "https://gmail-automation-3pyuzeeckset4gcqkjbxsj.streamlit.app"
                     ]
                 }
             }
