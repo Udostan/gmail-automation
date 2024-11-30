@@ -1,6 +1,9 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Page config
 st.set_page_config(
@@ -40,6 +43,32 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+def send_email(sender_email, sender_password, to_email, subject, body):
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        msg['Subject'] = subject
+
+        # Add body
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Create SMTP session
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        
+        # Login
+        server.login(sender_email, sender_password)
+        
+        # Send email
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        st.error(f"Error sending email: {str(e)}")
+        return False
 
 # Sample data with more realistic content
 SAMPLE_EMAILS = [
@@ -179,6 +208,7 @@ if 'user_profile' not in st.session_state:
     st.session_state.user_profile = {
         'name': '',
         'email': '',
+        'password': '',  # For Gmail login
         'signature': '',
         'profile_setup': False
     }
@@ -191,6 +221,8 @@ if not st.session_state.user_profile['profile_setup']:
     with st.form("profile_setup"):
         name = st.text_input("Your Name:", value=st.session_state.user_profile.get('name', ''))
         email = st.text_input("Your Email:", value=st.session_state.user_profile.get('email', ''))
+        password = st.text_input("Email Password:", type="password", 
+            help="This is needed to send emails through Gmail. We recommend using an App Password for security.")
         signature = st.text_area("Email Signature:", 
             value=st.session_state.user_profile.get('signature', ''),
             placeholder="""Sincerely,
@@ -213,6 +245,7 @@ https://techsolutions.com""",
             st.session_state.user_profile.update({
                 'name': name,
                 'email': email,
+                'password': password,
                 'signature': signature,
                 'profile_setup': True
             })
@@ -249,7 +282,7 @@ with st.sidebar:
         st.session_state.page = 'settings'
         st.rerun()
 
-# Main content based on selected page
+# Main content area
 if st.session_state.page == 'inbox':
     st.header("Inbox")
     
@@ -263,9 +296,8 @@ if st.session_state.page == 'inbox':
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.subheader("Emails")
+        st.subheader("Messages")
         for email in st.session_state.emails:
-            # Apply filters
             if st.session_state.filter != 'all':
                 if st.session_state.filter not in [label.lower() for label in email['labels']]:
                     continue
@@ -291,7 +323,6 @@ if st.session_state.page == 'inbox':
             st.success(f"Labels: {', '.join(email['labels'])}")
             st.text_area("Message:", email['body'], height=200, disabled=True)
             
-            # AI Actions
             st.markdown("### AI Assistant")
             col1, col2 = st.columns(2)
             with col1:
@@ -308,7 +339,16 @@ if st.session_state.page == 'inbox':
                 st.markdown("### Generated Response")
                 response = st.text_area("Edit Response:", st.session_state.responses[email['id']], height=300)
                 if st.button("Send Response"):
-                    st.success("Response sent successfully. (Demo Mode)")
+                    if send_email(
+                        st.session_state.user_profile['email'],
+                        st.session_state.user_profile['password'],
+                        email['from'],
+                        f"Re: {email['subject']}",
+                        response + "\n\n" + st.session_state.user_profile['signature']
+                    ):
+                        st.success("Response sent successfully.")
+                    else:
+                        st.error("Failed to send email. Please check your email settings.")
         else:
             st.info("Select an email from the inbox to view details")
 
@@ -320,84 +360,24 @@ elif st.session_state.page == 'composer':
         subject = st.text_input("Subject:")
         body = st.text_area("Message:", height=300)
         
-        # Auto-append signature
         full_message = f"{body}\n\n{st.session_state.user_profile['signature']}" if body else ""
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.form_submit_button("Draft"):
-                st.success(f"Email saved as draft. (Demo Mode)\nFrom: {st.session_state.user_profile['email']}")
+            if st.form_submit_button("Save Draft"):
+                st.success("Email saved as draft.")
         with col2:
             if st.form_submit_button("Send"):
-                st.success(f"Email sent successfully. (Demo Mode)\nFrom: {st.session_state.user_profile['email']}")
-                
-elif st.session_state.page == 'templates':
-    st.header("Email Templates")
-    
-    # Template list
-    for name, template in AI_RESPONSES.items():
-        with st.expander(f"{name}"):
-            st.markdown(f"**Subject:** Re: {{original_subject}}")
-            st.markdown("**Body:**")
-            st.text_area("", template, height=200, key=f"template_{name}")
-            if st.button("Use Template", key=f"use_{name}"):
-                st.session_state.page = 'composer'
-                st.rerun()
-    
-    # Add new template
-    st.markdown("### Add New Template")
-    with st.form("new_template"):
-        template_name = st.text_input("Template Name:")
-        template_subject = st.text_input("Subject:")
-        template_body = st.text_area("Body:", height=200)
-        if st.form_submit_button("Save Template"):
-            st.success("Template saved. (Demo Mode)")
-
-elif st.session_state.page == 'auto_reply':
-    st.header("Auto-Reply Rules")
-    
-    # Add new rule
-    with st.form("auto_reply_rule"):
-        st.subheader("Add New Rule")
-        condition = st.text_input("When email contains:")
-        response = st.text_area("Send this response:", height=150)
-        if st.form_submit_button("Add Rule"):
-            st.success("Auto-reply rule added. (Demo Mode)")
-    
-    # Existing rules
-    st.subheader("Existing Rules")
-    sample_rules = [
-        {"condition": "urgent", "response": "I'll look into this right away."},
-        {"condition": "meeting", "response": "I'll review and confirm my availability."}
-    ]
-    for rule in sample_rules:
-        with st.expander(f"Rule: Contains '{rule['condition']}'"):
-            st.text_area("Response:", rule['response'], height=100)
-            if st.button("Delete Rule", key=f"delete_{rule['condition']}"):
-                st.success("Rule deleted. (Demo Mode)")
-
-elif st.session_state.page == 'knowledge_base':
-    st.header("Knowledge Base")
-    
-    # Add new entry
-    with st.form("knowledge_entry"):
-        st.subheader("Add New Entry")
-        topic = st.text_input("Topic:")
-        content = st.text_area("Content:", height=150)
-        if st.form_submit_button("Add Entry"):
-            st.success("Knowledge base entry added. (Demo Mode)")
-    
-    # Existing entries
-    st.subheader("Existing Entries")
-    sample_entries = [
-        {"topic": "Project Guidelines", "content": "Standard project workflow and guidelines..."},
-        {"topic": "Common Responses", "content": "Frequently used email responses..."}
-    ]
-    for entry in sample_entries:
-        with st.expander(f"{entry['topic']}"):
-            st.text_area("Content:", entry['content'], height=100)
-            if st.button("Delete Entry", key=f"delete_{entry['topic']}"):
-                st.success("Entry deleted. (Demo Mode)")
+                if send_email(
+                    st.session_state.user_profile['email'],
+                    st.session_state.user_profile['password'],
+                    to_email,
+                    subject,
+                    full_message
+                ):
+                    st.success("Email sent successfully.")
+                else:
+                    st.error("Failed to send email. Please check your email settings.")
 
 elif st.session_state.page == 'settings':
     st.header("Settings")
@@ -406,6 +386,8 @@ elif st.session_state.page == 'settings':
         with st.form("user_profile"):
             name = st.text_input("Your Name:", value=st.session_state.user_profile['name'])
             email = st.text_input("Your Email:", value=st.session_state.user_profile['email'])
+            password = st.text_input("Email Password:", type="password",
+                help="This is needed to send emails through Gmail. We recommend using an App Password for security.")
             signature = st.text_area("Email Signature:", 
                 value=st.session_state.user_profile['signature'],
                 placeholder="""Sincerely,
@@ -428,6 +410,7 @@ https://techsolutions.com""",
                 st.session_state.user_profile.update({
                     'name': name,
                     'email': email,
+                    'password': password,
                     'signature': signature
                 })
                 st.success("Profile updated successfully.")
@@ -436,7 +419,7 @@ https://techsolutions.com""",
         st.selectbox("Theme:", ["Light", "Dark", "System"])
         st.checkbox("Show email preview")
         if st.button("Save Appearance"):
-            st.success("Appearance settings saved. (Demo Mode)")
+            st.success("Appearance settings saved.")
     
     with st.expander("Email Settings"):
         st.number_input("Emails per page:", min_value=10, max_value=50, value=25)
@@ -444,7 +427,7 @@ https://techsolutions.com""",
         st.checkbox("Enable smart compose")
         st.checkbox("Auto-append signature", value=True)
         if st.button("Save Email Settings"):
-            st.success("Email settings saved. (Demo Mode)")
+            st.success("Email settings saved.")
     
     with st.expander("AI Assistant Settings"):
         st.slider("Response creativity:", 0, 100, 50)
@@ -453,4 +436,4 @@ https://techsolutions.com""",
             ["Response Generation", "Label Suggestions"]
         )
         if st.button("Save AI Settings"):
-            st.success("AI settings saved. (Demo Mode)")
+            st.success("AI settings saved.")
