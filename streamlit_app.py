@@ -113,9 +113,8 @@ def get_gmail_service():
                 )
                 
                 # Handle the redirect with authorization code
-                params = st.experimental_get_query_params()
-                code = params.get("code", [None])[0]
-                state_param = params.get("state", [None])[0]
+                code = st.query_params.get("code")
+                state_param = st.query_params.get("state")
                 
                 if code and state_param:
                     if state_param != st.session_state.get('oauth_state'):
