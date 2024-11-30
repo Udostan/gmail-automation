@@ -170,10 +170,42 @@ if 'emails' not in st.session_state:
     st.session_state.emails = SAMPLE_EMAILS
 if 'selected_email' not in st.session_state:
     st.session_state.selected_email = None
-if 'responses' not in st.session_state:
-    st.session_state.responses = {}
-if 'filter' not in st.session_state:
-    st.session_state.filter = 'all'
+if 'templates' not in st.session_state:
+    st.session_state.templates = AI_RESPONSES
+if 'auto_replies' not in st.session_state:
+    st.session_state.auto_replies = []
+if 'knowledge_base' not in st.session_state:
+    st.session_state.knowledge_base = []
+if 'user_profile' not in st.session_state:
+    st.session_state.user_profile = {
+        'name': '',
+        'email': '',
+        'signature': '',
+        'profile_setup': False
+    }
+
+# Check if profile is set up
+if not st.session_state.user_profile['profile_setup']:
+    st.title("🎉 Welcome to Gmail AI Assistant!")
+    st.header("📝 Set Up Your Profile")
+    
+    with st.form("profile_setup"):
+        name = st.text_input("Your Name:", value=st.session_state.user_profile.get('name', ''))
+        email = st.text_input("Your Email:", value=st.session_state.user_profile.get('email', ''))
+        signature = st.text_area("Email Signature:", value=st.session_state.user_profile.get('signature', ''), 
+                               help="This will be automatically added to your emails")
+        
+        if st.form_submit_button("Save Profile"):
+            st.session_state.user_profile.update({
+                'name': name,
+                'email': email,
+                'signature': signature,
+                'profile_setup': True
+            })
+            st.success("Profile saved successfully! 🎊")
+            st.rerun()
+    
+    st.stop()
 
 # Sidebar navigation
 with st.sidebar:
@@ -261,17 +293,21 @@ if st.session_state.page == 'inbox':
 elif st.session_state.page == 'composer':
     st.header("✍️ New Email")
     with st.form("email_composer"):
+        st.info(f"Sending as: {st.session_state.user_profile['email']}")
         to_email = st.text_input("To:")
         subject = st.text_input("Subject:")
         body = st.text_area("Message:", height=300)
         
+        # Auto-append signature
+        full_message = f"{body}\n\n{st.session_state.user_profile['signature']}" if body else ""
+        
         col1, col2 = st.columns(2)
         with col1:
             if st.form_submit_button("📝 Draft"):
-                st.success("Email saved as draft! (Demo Mode)")
+                st.success(f"Email saved as draft! (Demo Mode)\nFrom: {st.session_state.user_profile['email']}")
         with col2:
             if st.form_submit_button("✉️ Send"):
-                st.success("Email sent successfully! (Demo Mode)")
+                st.success(f"Email sent successfully from {st.session_state.user_profile['email']}! (Demo Mode)")
                 st.balloons()
 
 elif st.session_state.page == 'templates':
@@ -345,11 +381,19 @@ elif st.session_state.page == 'knowledge_base':
 elif st.session_state.page == 'settings':
     st.header("⚙️ Settings")
     
-    with st.expander("👤 User Settings"):
-        st.text_input("Display Name:", "Demo User")
-        st.text_input("Email Signature:", "Best regards,\nDemo User")
-        if st.button("Save User Settings"):
-            st.success("Settings saved! (Demo Mode)")
+    with st.expander("👤 User Profile", expanded=True):
+        with st.form("user_profile"):
+            name = st.text_input("Your Name:", value=st.session_state.user_profile['name'])
+            email = st.text_input("Your Email:", value=st.session_state.user_profile['email'])
+            signature = st.text_area("Email Signature:", value=st.session_state.user_profile['signature'])
+            
+            if st.form_submit_button("Update Profile"):
+                st.session_state.user_profile.update({
+                    'name': name,
+                    'email': email,
+                    'signature': signature
+                })
+                st.success("Profile updated successfully! ✅")
     
     with st.expander("🎨 Appearance"):
         st.selectbox("Theme:", ["Light", "Dark", "System"])
@@ -361,6 +405,7 @@ elif st.session_state.page == 'settings':
         st.number_input("Emails per page:", min_value=10, max_value=50, value=25)
         st.checkbox("Send read receipts")
         st.checkbox("Enable smart compose")
+        st.checkbox("Auto-append signature", value=True)
         if st.button("Save Email Settings"):
             st.success("Email settings saved! (Demo Mode)")
     
