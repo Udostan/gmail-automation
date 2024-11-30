@@ -220,9 +220,23 @@ if not st.session_state.user_profile['profile_setup']:
     
     with st.form("profile_setup"):
         name = st.text_input("Your Name:", value=st.session_state.user_profile.get('name', ''))
-        email = st.text_input("Your Email:", value=st.session_state.user_profile.get('email', ''))
-        password = st.text_input("Email Password:", type="password", 
-            help="This is needed to send emails through Gmail. We recommend using an App Password for security.")
+        email = st.text_input("Your Email:", value=st.session_state.user_profile.get('email', ''),
+            help="Must be a Gmail address")
+        
+        st.markdown("""
+        ### Email Authentication
+        To send emails, you need to use an App Password:
+        1. Go to your [Google Account Settings](https://myaccount.google.com/)
+        2. Enable 2-Step Verification if not already enabled
+        3. Go to Security → App Passwords
+        4. Select "Mail" and "Other (Custom name)"
+        5. Name it "Gmail AI Assistant"
+        6. Click "Generate"
+        7. Copy and paste the 16-character password below
+        """)
+        
+        password = st.text_input("App Password:", type="password", 
+            help="Use the 16-character App Password generated from your Google Account, NOT your regular Gmail password")
         signature = st.text_area("Email Signature:", 
             value=st.session_state.user_profile.get('signature', ''),
             placeholder="""Sincerely,
