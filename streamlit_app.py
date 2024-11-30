@@ -82,10 +82,7 @@ def get_gmail_service():
                     "client_secret": st.secrets["oauth"]["client_secret"],
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [
-                        "http://localhost:8501",
-                        "https://gmail-automation-3pyuzeeckset4gcqkjbxsj.streamlit.app"
-                    ]
+                    "redirect_uris": [st.secrets["oauth"]["redirect_uri"]]
                 }
             }
             
@@ -95,7 +92,7 @@ def get_gmail_service():
                 flow = InstalledAppFlow.from_client_config(
                     client_config,
                     SCOPES,
-                    redirect_uri=client_config["web"]["redirect_uris"][1]  # Use the Streamlit Cloud URI
+                    redirect_uri=st.secrets["oauth"]["redirect_uri"]
                 )
                 authorization_url, state = flow.authorization_url(
                     access_type='offline',
