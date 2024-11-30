@@ -5,7 +5,6 @@ import random
 # Page config
 st.set_page_config(
     page_title="Gmail AI Assistant",
-    page_icon="",
     layout="wide"
 )
 
@@ -252,11 +251,19 @@ with st.sidebar:
 
 # Main content based on selected page
 if st.session_state.page == 'inbox':
+    st.header("Inbox")
+    
+    # Filters
+    st.subheader("Filters")
+    filter_options = ['All', 'Important', 'Meeting', 'Project']
+    selected_filter = st.selectbox("Show:", filter_options)
+    st.session_state.filter = selected_filter.lower()
+    
     # Inbox layout
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.subheader("Inbox")
+        st.subheader("Emails")
         for email in st.session_state.emails:
             # Apply filters
             if st.session_state.filter != 'all':
@@ -298,11 +305,10 @@ if st.session_state.page == 'inbox':
                     st.info(f"Suggested Labels: {', '.join(suggested_labels)}")
             
             if email['id'] in st.session_state.responses:
-                st.markdown("### Generated Response:")
+                st.markdown("### Generated Response")
                 response = st.text_area("Edit Response:", st.session_state.responses[email['id']], height=300)
                 if st.button("Send Response"):
-                    st.success("Response sent successfully! (Demo Mode)")
-                    st.balloons()
+                    st.success("Response sent successfully. (Demo Mode)")
         else:
             st.info("Select an email from the inbox to view details")
 
@@ -320,12 +326,11 @@ elif st.session_state.page == 'composer':
         col1, col2 = st.columns(2)
         with col1:
             if st.form_submit_button("Draft"):
-                st.success(f"Email saved as draft! (Demo Mode)\nFrom: {st.session_state.user_profile['email']}")
+                st.success(f"Email saved as draft. (Demo Mode)\nFrom: {st.session_state.user_profile['email']}")
         with col2:
             if st.form_submit_button("Send"):
-                st.success(f"Email sent successfully from {st.session_state.user_profile['email']}! (Demo Mode)")
-                st.balloons()
-
+                st.success(f"Email sent successfully. (Demo Mode)\nFrom: {st.session_state.user_profile['email']}")
+                
 elif st.session_state.page == 'templates':
     st.header("Email Templates")
     
@@ -346,7 +351,7 @@ elif st.session_state.page == 'templates':
         template_subject = st.text_input("Subject:")
         template_body = st.text_area("Body:", height=200)
         if st.form_submit_button("Save Template"):
-            st.success("Template saved! (Demo Mode)")
+            st.success("Template saved. (Demo Mode)")
 
 elif st.session_state.page == 'auto_reply':
     st.header("Auto-Reply Rules")
@@ -357,7 +362,7 @@ elif st.session_state.page == 'auto_reply':
         condition = st.text_input("When email contains:")
         response = st.text_area("Send this response:", height=150)
         if st.form_submit_button("Add Rule"):
-            st.success("Auto-reply rule added! (Demo Mode)")
+            st.success("Auto-reply rule added. (Demo Mode)")
     
     # Existing rules
     st.subheader("Existing Rules")
@@ -369,7 +374,7 @@ elif st.session_state.page == 'auto_reply':
         with st.expander(f"Rule: Contains '{rule['condition']}'"):
             st.text_area("Response:", rule['response'], height=100)
             if st.button("Delete Rule", key=f"delete_{rule['condition']}"):
-                st.success("Rule deleted! (Demo Mode)")
+                st.success("Rule deleted. (Demo Mode)")
 
 elif st.session_state.page == 'knowledge_base':
     st.header("Knowledge Base")
@@ -380,7 +385,7 @@ elif st.session_state.page == 'knowledge_base':
         topic = st.text_input("Topic:")
         content = st.text_area("Content:", height=150)
         if st.form_submit_button("Add Entry"):
-            st.success("Knowledge base entry added! (Demo Mode)")
+            st.success("Knowledge base entry added. (Demo Mode)")
     
     # Existing entries
     st.subheader("Existing Entries")
@@ -392,7 +397,7 @@ elif st.session_state.page == 'knowledge_base':
         with st.expander(f"{entry['topic']}"):
             st.text_area("Content:", entry['content'], height=100)
             if st.button("Delete Entry", key=f"delete_{entry['topic']}"):
-                st.success("Entry deleted! (Demo Mode)")
+                st.success("Entry deleted. (Demo Mode)")
 
 elif st.session_state.page == 'settings':
     st.header("Settings")
