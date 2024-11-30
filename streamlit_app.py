@@ -1,15 +1,90 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import random
-import smtplib
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import base64
+import os
+import json
 
 # Page config
 st.set_page_config(
     page_title="Gmail AI Assistant",
     layout="wide"
 )
+
+# Gmail API scopes
+SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly']
+
+def get_gmail_service():
+    """Get Gmail API service instance."""
+    if 'credentials' not in st.session_state:
+        st.session_state.credentials = None
+
+    if not st.session_state.credentials:
+        try:
+            # Create OAuth config from secrets
+            client_config = {
+                "web": {
+                    "client_id": st.secrets["oauth"]["client_id"],
+                    "client_secret": st.secrets["oauth"]["client_secret"],
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [
+                        "http://localhost:8501/",
+                        "https://gmail-automation-3pyuzeeckset4gcqkjbxsj.streamlit.app/"
+                    ]
+                }
+            }
+            
+            # Show login button
+            st.warning("Please sign in with your Google account to continue")
+            if st.button("Sign in with Google"):
+                flow = InstalledAppFlow.from_client_config(
+                    client_config,
+                    SCOPES,
+                    redirect_uri=client_config["web"]["redirect_uris"][1]  # Use the Streamlit Cloud URI
+                )
+                st.session_state.credentials = flow.run_local_server(port=8501)
+                
+        except Exception as e:
+            st.error(f"Authentication failed: {str(e)}")
+            return None
+
+    try:
+        service = build('gmail', 'v1', credentials=st.session_state.credentials)
+        return service
+    except Exception as e:
+        st.error(f"Error building Gmail service: {str(e)}")
+        return None
+
+def send_email(to_email, subject, body):
+    """Send email using Gmail API."""
+    service = get_gmail_service()
+    if not service:
+        return False
+
+    try:
+        message = MIMEText(body)
+        message['to'] = to_email
+        message['subject'] = subject
+        
+        # Encode the message
+        raw = base64.urlsafe_b64encode(message.as_bytes())
+        raw = raw.decode()
+        
+        # Send the message
+        service.users().messages().send(
+            userId='me',
+            body={'raw': raw}
+        ).execute()
+        
+        return True
+    except Exception as e:
+        st.error(f"Error sending email: {str(e)}")
+        return False
 
 # Custom CSS
 st.markdown("""
@@ -43,32 +118,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-def send_email(sender_email, sender_password, to_email, subject, body):
-    try:
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = to_email
-        msg['Subject'] = subject
-
-        # Add body
-        msg.attach(MIMEText(body, 'plain'))
-
-        # Create SMTP session
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        
-        # Login
-        server.login(sender_email, sender_password)
-        
-        # Send email
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        st.error(f"Error sending email: {str(e)}")
-        return False
 
 # Sample data with more realistic content
 SAMPLE_EMAILS = [
@@ -198,17 +247,10 @@ if 'emails' not in st.session_state:
     st.session_state.emails = SAMPLE_EMAILS
 if 'selected_email' not in st.session_state:
     st.session_state.selected_email = None
-if 'templates' not in st.session_state:
-    st.session_state.templates = AI_RESPONSES
-if 'auto_replies' not in st.session_state:
-    st.session_state.auto_replies = []
-if 'knowledge_base' not in st.session_state:
-    st.session_state.knowledge_base = []
 if 'user_profile' not in st.session_state:
     st.session_state.user_profile = {
         'name': '',
         'email': '',
-        'password': '',  # For Gmail login
         'signature': '',
         'profile_setup': False
     }
@@ -218,28 +260,21 @@ if not st.session_state.user_profile['profile_setup']:
     st.title("Welcome to Gmail AI Assistant")
     st.header("Set Up Your Profile")
     
-    with st.form("profile_setup"):
-        name = st.text_input("Your Name:", value=st.session_state.user_profile.get('name', ''))
-        email = st.text_input("Your Email:", value=st.session_state.user_profile.get('email', ''),
-            help="Must be a Gmail address")
-        
-        st.markdown("""
-        ### Email Authentication
-        To send emails, you need to use an App Password:
-        1. Go to your [Google Account Settings](https://myaccount.google.com/)
-        2. Enable 2-Step Verification if not already enabled
-        3. Go to Security → App Passwords
-        4. Select "Mail" and "Other (Custom name)"
-        5. Name it "Gmail AI Assistant"
-        6. Click "Generate"
-        7. Copy and paste the 16-character password below
-        """)
-        
-        password = st.text_input("App Password:", type="password", 
-            help="Use the 16-character App Password generated from your Google Account, NOT your regular Gmail password")
-        signature = st.text_area("Email Signature:", 
-            value=st.session_state.user_profile.get('signature', ''),
-            placeholder="""Sincerely,
+    # Get Gmail service
+    service = get_gmail_service()
+    if service:
+        try:
+            # Get user's email address
+            profile = service.users().getProfile(userId='me').execute()
+            email = profile['emailAddress']
+            
+            with st.form("profile_setup"):
+                name = st.text_input("Your Name:", value=st.session_state.user_profile.get('name', ''))
+                st.info(f"Email: {email}")
+                
+                signature = st.text_area("Email Signature:", 
+                    value=st.session_state.user_profile.get('signature', ''),
+                    placeholder="""Sincerely,
 
 Sarah Johnson
 Senior Software Engineer
@@ -252,19 +287,17 @@ Mobile: +1 (555) 987-6543
 Tech Solutions Inc.
 123 Innovation Drive
 San Francisco, CA 94105
-https://techsolutions.com""",
-            help="Your email signature is automatically added at the end of your emails. It typically includes your name, title, contact information, and company details.")
-        
-        if st.form_submit_button("Save Profile"):
-            st.session_state.user_profile.update({
-                'name': name,
-                'email': email,
-                'password': password,
-                'signature': signature,
-                'profile_setup': True
-            })
-            st.success("Profile saved successfully.")
-            st.rerun()
+https://techsolutions.com""")
+                
+                if st.form_submit_button("Save Profile"):
+                    st.session_state.user_profile.update({
+                        'name': name,
+                        'email': email,
+                        'signature': signature,
+                        'profile_setup': True
+                    })
+                    st.success("Profile saved successfully.")
+                    st.rerun()
     
     st.stop()
 
@@ -349,13 +382,11 @@ if st.session_state.page == 'inbox':
                     suggested_labels = ["Follow-up", "Urgent", "Review"]
                     st.info(f"Suggested Labels: {', '.join(suggested_labels)}")
             
-            if email['id'] in st.session_state.responses:
+            if email['id'] in st.session_state.get('responses', {}):
                 st.markdown("### Generated Response")
                 response = st.text_area("Edit Response:", st.session_state.responses[email['id']], height=300)
                 if st.button("Send Response"):
                     if send_email(
-                        st.session_state.user_profile['email'],
-                        st.session_state.user_profile['password'],
                         email['from'],
                         f"Re: {email['subject']}",
                         response + "\n\n" + st.session_state.user_profile['signature']
@@ -383,8 +414,6 @@ elif st.session_state.page == 'composer':
         with col2:
             if st.form_submit_button("Send"):
                 if send_email(
-                    st.session_state.user_profile['email'],
-                    st.session_state.user_profile['password'],
                     to_email,
                     subject,
                     full_message
@@ -400,8 +429,6 @@ elif st.session_state.page == 'settings':
         with st.form("user_profile"):
             name = st.text_input("Your Name:", value=st.session_state.user_profile['name'])
             email = st.text_input("Your Email:", value=st.session_state.user_profile['email'])
-            password = st.text_input("Email Password:", type="password",
-                help="This is needed to send emails through Gmail. We recommend using an App Password for security.")
             signature = st.text_area("Email Signature:", 
                 value=st.session_state.user_profile['signature'],
                 placeholder="""Sincerely,
@@ -424,7 +451,6 @@ https://techsolutions.com""",
                 st.session_state.user_profile.update({
                     'name': name,
                     'email': email,
-                    'password': password,
                     'signature': signature
                 })
                 st.success("Profile updated successfully.")
