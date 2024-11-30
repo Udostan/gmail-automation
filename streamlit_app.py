@@ -1,560 +1,71 @@
 import streamlit as st
-import os
-import json
-import base64
-import requests
-import traceback
-import time
-from datetime import datetime, timezone, timedelta
-from email.mime.text import MIMEText
-from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from supabase import create_client, Client
-from groq import Groq
-import pandas as pd
-import PyPDF2
 
-# Enable WSGI mode for OAuth
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+# Page config
+st.set_page_config(page_title="Email Assistant", page_icon="📧", layout="wide")
 
-# Page configuration
-st.set_page_config(page_title="Gmail Automation", layout="wide")
+# Sample data
+SAMPLE_EMAILS = [
+    {
+        'id': '1',
+        'subject': 'Project Update Request',
+        'from': 'manager@company.com',
+        'date': '2024-02-20',
+        'body': 'Hi team,\n\nCould you please provide an update on the current project status?'
+    },
+    {
+        'id': '2',
+        'subject': 'Meeting Schedule Change',
+        'from': 'admin@company.com',
+        'date': '2024-02-19',
+        'body': 'Dear all,\n\nThe weekly team meeting has been rescheduled to Thursday at 2 PM.'
+    },
+    {
+        'id': '3',
+        'subject': 'Client Feedback Required',
+        'from': 'client.success@company.com',
+        'date': '2024-02-18',
+        'body': 'Hello,\n\nWe need your feedback on the latest feature release.'
+    }
+]
 
-try:
-    # Initialize session state
-    if 'credentials' not in st.session_state:
-        st.session_state.credentials = None
-    if 'auto_reply_enabled' not in st.session_state:
-        st.session_state.auto_reply_enabled = False
-    if 'last_email_check' not in st.session_state:
-        st.session_state.last_email_check = None
-    if 'oauth_state' not in st.session_state:
-        st.session_state.oauth_state = None
+# Initialize session state
+if 'emails' not in st.session_state:
+    st.session_state.emails = SAMPLE_EMAILS
+if 'selected_email' not in st.session_state:
+    st.session_state.selected_email = None
 
-    # Verify secrets are available
-    required_secrets = [
-        "SUPABASE_URL",
-        "SUPABASE_KEY",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "OAUTH_REDIRECT_URI",
-        "GROQ_API_KEY",
-        "google_oauth_config"
-    ]
-    
-    missing_secrets = [secret for secret in required_secrets if secret not in st.secrets]
-    if missing_secrets:
-        st.error(f"Missing required secrets: {', '.join(missing_secrets)}")
-        st.stop()
+# Title
+st.title("📧 Email Assistant")
 
-    # Supabase configuration
-    supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+# Layout
+col1, col2 = st.columns([1, 2])
 
-    # Groq API configuration
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+# Email list
+with col1:
+    st.subheader("📥 Inbox")
+    for email in st.session_state.emails:
+        if st.button(
+            f"📨 {email['subject']}\n\nFrom: {email['from']}\nDate: {email['date']}",
+            key=f"email_{email['id']}"
+        ):
+            st.session_state.selected_email = email
 
-    # OAuth 2.0 configuration
-    SCOPES = [
-        'openid',
-        'https://www.googleapis.com/auth/gmail.modify',
-        'https://www.googleapis.com/auth/userinfo.profile',
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/gmail.compose',
-        'https://mail.google.com/',
-        'https://www.googleapis.com/auth/gmail.send'
-    ]
-
-    # Ensure redirect URI has trailing slash
-    REDIRECT_URI = st.secrets["OAUTH_REDIRECT_URI"]
-    if not REDIRECT_URI.endswith('/'):
-        REDIRECT_URI += '/'
-
-def get_ai_response(prompt, context=""):
-    try:
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "model": "mixtral-8x7b-32768",
-            "messages": [
-                {"role": "system", "content": "You are an AI assistant helping to compose email responses."},
-                {"role": "user", "content": f"Context: {context}\n\nPrompt: {prompt}"}
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1000
-        }
-        response = requests.post(GROQ_API_URL, headers=headers, json=data)
-        response.raise_for_status()
-        return response.json()['choices'][0]['message']['content']
-    except Exception as e:
-        st.error(f"Error getting AI response: {str(e)}")
-        return None
-
-def main():
-    st.title("Gmail Automation")
-    
-    # Sidebar
-    with st.sidebar:
-        st.title("Navigation")
-        page = st.radio("Go to", ["Home", "Auto-Reply", "Email Templates", "Knowledge Base", "Settings"])
-
-    if not st.session_state.credentials:
-        st.write("Please login with your Google account to get started")
-        if st.button("Login with Google"):
-            handle_auth()
+# Email details
+with col2:
+    st.subheader("📝 Message Details")
+    if st.session_state.selected_email:
+        email = st.session_state.selected_email
+        st.markdown(f"**From:** {email['from']}")
+        st.markdown(f"**Date:** {email['date']}")
+        st.markdown(f"**Subject:** {email['subject']}")
+        st.markdown("---")
+        st.text_area("Message:", email['body'], height=200)
+        
+        # AI Response
+        if st.button("🤖 Generate Response"):
+            response = f"Thank you for your email regarding {email['subject']}. I will review and respond shortly."
+            st.text_area("AI Response:", response, height=150)
+            if st.button("Send Response"):
+                st.success("Response sent! (Demo Mode)")
     else:
-        if page == "Home":
-            show_home_page()
-        elif page == "Auto-Reply":
-            show_auto_reply_page()
-        elif page == "Email Templates":
-            show_templates_page()
-        elif page == "Knowledge Base":
-            show_knowledge_base_page()
-        elif page == "Settings":
-            show_settings_page()
-
-def handle_auth():
-    # Initialize session state for credentials
-    if 'credentials' not in st.session_state:
-        st.session_state.credentials = None
-    
-    # If we already have valid credentials, return them
-    if st.session_state.credentials:
-        try:
-            # Try to build the service with existing credentials
-            service = build('gmail', 'v1', credentials=st.session_state.credentials)
-            # Test the credentials with a simple API call
-            service.users().getProfile(userId='me').execute()
-            return st.session_state.credentials
-        except Exception:
-            # If there's any error, clear the credentials and continue with auth flow
-            st.session_state.credentials = None
-    
-    # Get query parameters
-    query_params = st.experimental_get_query_params()
-    
-    # Debug output
-    st.write("Debug: Current query parameters:\n")
-    st.json(query_params)
-    
-    # Initialize OAuth flow
-    flow = Flow.from_client_config(
-        client_config=json.loads(st.secrets["google_oauth_config"]),
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
-    )
-    
-    # If we have an authorization code
-    if "code" in query_params:
-        try:
-            st.write("Processing OAuth callback...")
-            
-            # Debug session state
-            st.write("\nDebug: Current session state:\n")
-            st.json({k: str(v) for k, v in st.session_state.items()})
-            
-            # Debug flow configuration
-            st.write("\nDebug: Flow configuration:\n")
-            st.json({
-                "redirect_uri": flow.redirect_uri,
-                "scopes": flow.scopes,
-                "client_id": flow.client_config['client_id']
-            })
-            
-            # Get authorization response
-            authorization_response = str(st.experimental_get_query_params())
-            st.write("\nDebug: Authorization response:\n")
-            st.write(authorization_response)
-            
-            # Exchange code for token
-            try:
-                flow.fetch_token(authorization_response=st.experimental_get_url())
-                st.session_state.credentials = flow.credentials
-                
-                # Clear the URL parameters
-                st.experimental_set_query_params()
-                
-                # Force a rerun to clear the authorization code from URL
-                st.experimental_rerun()
-                
-            except Exception as e:
-                st.error("Error during OAuth callback")
-                st.error(f"Error type: {type(e)}")
-                st.error(f"Error message: {str(e)}")
-                st.error("Debug: Full traceback:")
-                st.code(traceback.format_exc())
-                raise e
-        
-        except Exception as e:
-            st.error("Error during OAuth callback")
-            st.error(f"Error type: {type(e)}")
-            st.error(f"Error message: {str(e)}")
-            st.error("Debug: Full traceback:")
-            st.code(traceback.format_exc())
-            # Clear any partial credentials
-            st.session_state.credentials = None
-            # Clear the URL parameters
-            st.experimental_set_query_params()
-            raise e
-    
-    # If we don't have credentials or authorization code, start the OAuth flow
-    if not st.session_state.credentials:
-        auth_url, _ = flow.authorization_url(prompt='consent')
-        st.write("Please login with your Google account to get started")
-        st.markdown(f'<a href="{auth_url}" target="_self"><button>Login with Google</button></a>', unsafe_allow_html=True)
-        return None
-    
-    return st.session_state.credentials
-
-def create_message(sender, to, subject, message_text):
-    try:
-        message = MIMEText(message_text)
-        message['to'] = ', '.join(to) if isinstance(to, list) else to
-        message['from'] = sender
-        message['subject'] = subject
-        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-        return {'raw': raw_message}
-    except Exception as e:
-        st.error(f"Error creating message: {str(e)}")
-        return None
-
-def check_new_emails(service, last_check_time):
-    try:
-        query = f'after:{int(last_check_time.timestamp())}'
-        results = service.users().messages().list(userId='me', q=query).execute()
-        return results.get('messages', [])
-    except Exception as e:
-        st.error(f"Error checking emails: {str(e)}")
-        return []
-
-def process_auto_replies(service, new_messages):
-    try:
-        for msg in new_messages:
-            email = service.users().messages().get(userId='me', id=msg['id']).execute()
-            headers = email['payload']['headers']
-            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
-            sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown')
-            
-            # Get email body
-            if 'parts' in email['payload']:
-                body = base64.urlsafe_b64decode(email['payload']['parts'][0]['body']['data']).decode()
-            else:
-                body = base64.urlsafe_b64decode(email['payload']['body']['data']).decode()
-            
-            # Generate AI response
-            context = f"This is a reply to an email with subject: {subject}"
-            prompt = f"Generate a professional response to this email:\n\n{body}"
-            ai_response = get_ai_response(prompt, context)
-            
-            if ai_response:
-                reply = create_message(
-                    'me',
-                    sender,
-                    f"Re: {subject}",
-                    ai_response
-                )
-                service.users().messages().send(userId='me', body=reply).execute()
-    except Exception as e:
-        st.error(f"Error processing auto-replies: {str(e)}")
-
-def show_auto_reply_page():
-    st.header("Auto-Reply Settings")
-    
-    auto_reply_enabled = st.toggle("Enable Auto-Reply", st.session_state.auto_reply_enabled)
-    
-    if auto_reply_enabled != st.session_state.auto_reply_enabled:
-        st.session_state.auto_reply_enabled = auto_reply_enabled
-        if auto_reply_enabled:
-            st.session_state.last_email_check = datetime.now()
-            st.success("Auto-reply enabled!")
-        else:
-            st.info("Auto-reply disabled")
-    
-    if st.session_state.auto_reply_enabled:
-        try:
-            # Create credentials from dict
-            creds_dict = st.session_state.credentials
-            credentials = Credentials(
-                token=creds_dict['token'],
-                refresh_token=creds_dict['refresh_token'],
-                token_uri=creds_dict['token_uri'],
-                client_id=creds_dict['client_id'],
-                client_secret=creds_dict['client_secret'],
-                scopes=creds_dict['scopes']
-            )
-            
-            service = build('gmail', 'v1', credentials=credentials)
-            
-            # Check for new emails every minute
-            current_time = datetime.now()
-            if (st.session_state.last_email_check is None or 
-                (current_time - st.session_state.last_email_check) > timedelta(minutes=1)):
-                
-                new_messages = check_new_emails(service, st.session_state.last_email_check)
-                if new_messages:
-                    process_auto_replies(service, new_messages)
-                
-                st.session_state.last_email_check = current_time
-        except Exception as e:
-            st.error(f"Error in auto-reply: {str(e)}")
-            st.session_state.auto_reply_enabled = False
-
-def show_home_page():
-    st.header("Dashboard")
-    
-    try:
-        # Create credentials from dict
-        creds_dict = st.session_state.credentials
-        credentials = Credentials(
-            token=creds_dict['token'],
-            refresh_token=creds_dict['refresh_token'],
-            token_uri=creds_dict['token_uri'],
-            client_id=creds_dict['client_id'],
-            client_secret=creds_dict['client_secret'],
-            scopes=creds_dict['scopes']
-        )
-        
-        # Get user info
-        service = build('gmail', 'v1', credentials=credentials)
-        user_info = service.users().getProfile(userId='me').execute()
-        st.success(f"Logged in as: {user_info['emailAddress']}")
-        
-        # Email composition with AI assistance
-        with st.expander("Compose Email"):
-            # Initialize session state for email composition
-            if 'email_message' not in st.session_state:
-                st.session_state.email_message = ""
-            if 'ai_suggestion' not in st.session_state:
-                st.session_state.ai_suggestion = ""
-            
-            to = st.text_input("To (separate multiple emails with commas)")
-            subject = st.text_input("Subject")
-            
-            # Create columns for message input and AI suggestions
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                message = st.text_area("Message", value=st.session_state.email_message, height=300, key="message_input")
-                # Update session state when message changes
-                st.session_state.email_message = message
-                
-            with col2:
-                st.subheader("AI Suggestions")
-                
-                if st.button("Get AI Suggestions"):
-                    prompt = f"Suggest improvements for this email:\n\nSubject: {subject}\n\n{message}"
-                    suggestions = get_ai_response(prompt)
-                    if suggestions:
-                        st.session_state.ai_suggestion = suggestions
-                
-                if st.session_state.ai_suggestion:
-                    st.info("AI Suggestions:")
-                    st.write(st.session_state.ai_suggestion)
-                    if st.button("Apply Suggestions"):
-                        st.session_state.email_message = st.session_state.ai_suggestion
-                        st.experimental_rerun()
-            
-            if st.button("Send Email"):
-                if not to or not subject or not message:
-                    st.error("Please fill in all fields (To, Subject, and Message)")
-                else:
-                    try:
-                        # Split and clean email addresses
-                        to_addresses = [email.strip() for email in to.split(',') if email.strip()]
-                        
-                        if not to_addresses:
-                            st.error("Please enter at least one valid email address")
-                            return
-                        
-                        email_msg = create_message(
-                            'me',
-                            to_addresses,
-                            subject,
-                            message
-                        )
-                        
-                        if email_msg:
-                            service.users().messages().send(userId='me', body=email_msg).execute()
-                            st.success("Email sent successfully!")
-                            # Clear the form
-                            st.session_state.ai_suggestion = ""
-                            st.session_state.email_message = ""
-                            st.experimental_rerun()
-                    except Exception as e:
-                        st.error(f"Error sending email: {str(e)}")
-                        st.code(traceback.format_exc())
-    
-    except Exception as e:
-        st.error(f"Error loading dashboard: {str(e)}")
-        st.code(traceback.format_exc())
-
-def show_knowledge_base_page():
-    st.header("Knowledge Base")
-    
-    # Search functionality
-    search_query = st.text_input("Search Knowledge Base")
-    if search_query:
-        try:
-            # Use AI to enhance search
-            search_prompt = f"Extract key terms and concepts from this search query: {search_query}"
-            enhanced_terms = get_ai_response(search_prompt)
-            
-            if enhanced_terms:
-                response = supabase.table('knowledge_base').select("*").textSearch('content', enhanced_terms).execute()
-                entries = response.data
-                
-                if entries:
-                    st.write(f"Found {len(entries)} relevant entries:")
-                    for entry in entries:
-                        st.write(f"Source: {entry['source']}")
-                        st.write(f"Added: {entry['date_added']}")
-                        st.text_area("Content", entry['content'], key=f"kb_search_{entry['id']}", disabled=True)
-                        st.divider()
-                else:
-                    st.info("No matching entries found")
-        except Exception as e:
-            st.error(f"Error searching knowledge base: {str(e)}")
-    
-    # Text input
-    with st.expander("Add Text"):
-        text = st.text_area("Enter text to add to knowledge base")
-        if st.button("Add Text"):
-            try:
-                data = supabase.table('knowledge_base').insert({
-                    "content": text,
-                    "source": "text_input",
-                    "date_added": datetime.now().isoformat()
-                }).execute()
-                st.success("Text added to knowledge base!")
-            except Exception as e:
-                st.error(f"Error adding text: {str(e)}")
-    
-    # File upload with progress
-    with st.expander("Upload File"):
-        uploaded_file = st.file_uploader("Choose a file", type=['pdf', 'csv', 'txt'])
-        if uploaded_file is not None:
-            try:
-                progress_bar = st.progress(0)
-                content = ""
-                
-                if uploaded_file.type == "application/pdf":
-                    pdf_reader = PyPDF2.PdfReader(uploaded_file)
-                    total_pages = len(pdf_reader.pages)
-                    for i, page in enumerate(pdf_reader.pages):
-                        content += page.extract_text()
-                        progress_bar.progress((i + 1) / total_pages)
-                elif uploaded_file.type == "text/csv":
-                    df = pd.read_csv(uploaded_file)
-                    content = df.to_string()
-                    progress_bar.progress(1.0)
-                else:  # txt file
-                    content = uploaded_file.getvalue().decode()
-                    progress_bar.progress(1.0)
-                
-                data = supabase.table('knowledge_base').insert({
-                    "content": content,
-                    "source": uploaded_file.name,
-                    "date_added": datetime.now().isoformat()
-                }).execute()
-                st.success("File processed and added to knowledge base!")
-            except Exception as e:
-                st.error(f"Error processing file: {str(e)}")
-
-def show_settings_page():
-    st.header("Settings")
-    
-    # Auto-reply settings
-    with st.expander("Auto-Reply Settings"):
-        st.checkbox("Send notification when auto-reply is triggered")
-        st.number_input("Minimum time between auto-replies (minutes)", min_value=1, value=5)
-    
-    # Knowledge base settings
-    with st.expander("Knowledge Base Settings"):
-        st.number_input("Maximum file size (MB)", min_value=1, value=10)
-        st.multiselect("Allowed file types", ['pdf', 'csv', 'txt', 'doc', 'docx'], default=['pdf', 'csv', 'txt'])
-    
-    # Account settings
-    with st.expander("Account Settings"):
-        st.text_input("Default email signature")
-        st.selectbox("Default email format", ["Plain text", "HTML"])
-    
-    if st.button("Save Settings"):
-        st.success("Settings saved successfully!")
-    
-    if st.button("Logout"):
-        st.session_state.credentials = None
-        st.session_state.auto_reply_enabled = False
-        st.experimental_rerun()
-
-def show_templates_page():
-    st.header("Email Templates")
-    
-    # Template creation
-    with st.expander("Create New Template"):
-        name = st.text_input("Template Name")
-        subject = st.text_input("Subject Template")
-        content = st.text_area("Email Content")
-        
-        if st.button("Save Template"):
-            try:
-                data = supabase.table('email_templates').insert({
-                    "name": name,
-                    "subject": subject,
-                    "content": content
-                }).execute()
-                st.success("Template saved successfully!")
-                # Clear the form
-                name = ""
-                subject = ""
-                content = ""
-                st.experimental_rerun()
-            except Exception as e:
-                st.error(f"Error saving template: {str(e)}")
-    
-    # Display existing templates
-    with st.expander("View Templates"):
-        if st.button("Refresh Templates"):
-            try:
-                response = supabase.table('email_templates').select("*").execute()
-                templates = response.data
-                
-                if not templates:
-                    st.info("No templates found. Create one above!")
-                
-                for template in templates:
-                    st.subheader(template['name'])
-                    st.write(f"Subject: {template['subject']}")
-                    st.text_area("Content", template['content'], key=f"template_{template['id']}", disabled=True)
-                    st.write(f"Template ID: {template['id']}")  # Debug line
-                    
-                    # Create two columns for the buttons
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("Use Template", key=f"use_{template['id']}"):
-                            st.session_state.email_message = template['content']
-                            st.experimental_rerun()
-                    with col2:
-                        if st.button("Delete", key=f"delete_{template['id']}", type="secondary"):
-                            try:
-                                # Debug output
-                                st.write(f"Attempting to delete template with ID: {template['id']}")
-                                result = supabase.table('email_templates').delete().eq('id', template['id']).execute()
-                                st.write(f"Delete result: {result}")  # Debug line
-                                st.success(f"Template '{template['name']}' deleted successfully!")
-                                time.sleep(1)  # Give the database a moment to process
-                                st.experimental_rerun()
-                            except Exception as e:
-                                st.error(f"Error deleting template: {str(e)}")
-                                st.error(f"Full error details: {traceback.format_exc()}")  # Debug line
-                    
-                    st.divider()
-            except Exception as e:
-                st.error(f"Error loading templates: {str(e)}")
-                st.error(f"Full error details: {traceback.format_exc()}")  # Debug line
-
-if __name__ == "__main__":
-    main()
+        st.info("👈 Select an email from the inbox")
