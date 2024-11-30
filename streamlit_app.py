@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 import random
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 import base64
@@ -75,69 +75,61 @@ def get_gmail_service():
 
     if not st.session_state.credentials:
         try:
-            # Create OAuth config from secrets
-            client_config = {
-                "web": {
-                    "client_id": st.secrets["oauth"]["client_id"],
-                    "client_secret": st.secrets["oauth"]["client_secret"],
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [st.secrets["oauth"]["redirect_uri"]]
-                }
-            }
-            
             # Show login button
             st.warning("Please sign in with your Google account to continue")
             if st.button("Sign in with Google"):
-                flow = InstalledAppFlow.from_client_config(
-                    client_config,
-                    SCOPES,
+                # Create the flow using the client secrets
+                flow = Flow.from_client_config(
+                    {
+                        "web": {
+                            "client_id": st.secrets["oauth"]["client_id"],
+                            "client_secret": st.secrets["oauth"]["client_secret"],
+                            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                            "token_uri": "https://oauth2.googleapis.com/token",
+                            "redirect_uris": [st.secrets["oauth"]["redirect_uri"]]
+                        }
+                    },
+                    scopes=SCOPES,
                     redirect_uri=st.secrets["oauth"]["redirect_uri"]
                 )
-                authorization_url, state = flow.authorization_url(
-                    access_type='offline',
-                    include_granted_scopes='true',
-                    prompt='consent'
-                )
                 
-                # Store state in session
-                st.session_state['oauth_state'] = state
+                # Generate the authorization URL
+                auth_url, _ = flow.authorization_url(prompt="consent")
                 
-                # Create authorization URL with state
-                st.markdown(
-                    f'<a href="{authorization_url}" target="_self" class="button">Authorize Gmail Access</a>',
-                    unsafe_allow_html=True
-                )
+                # Store the flow in session state
+                st.session_state['flow'] = flow
                 
-                # Handle the redirect with authorization code
-                code = st.query_params.get("code")
-                state_param = st.query_params.get("state")
+                # Redirect to Google's auth page
+                st.markdown(f'<a href="{auth_url}" target="_self" class="button">Authorize Gmail Access</a>', unsafe_allow_html=True)
                 
-                if code and state_param:
-                    if state_param != st.session_state.get('oauth_state'):
-                        st.error("State mismatch. Please try authenticating again.")
-                        return None
-                        
-                    try:
-                        flow.fetch_token(code=code)
+                return None
+                
+            # Check for the authorization response
+            if 'code' in st.query_params:
+                try:
+                    flow = st.session_state.get('flow')
+                    if flow:
+                        flow.fetch_token(code=st.query_params['code'])
                         st.session_state.credentials = flow.credentials
                         st.success("Successfully authenticated!")
                         st.rerun()
-                        return build('gmail', 'v1', credentials=st.session_state.credentials)
-                    except Exception as e:
-                        st.error(f"Error exchanging code for token: {str(e)}")
-                        return None
-                return None
-                
+                except Exception as e:
+                    st.error(f"Error exchanging code for token: {str(e)}")
+                    return None
+                    
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
             return None
 
-    try:
-        return build('gmail', 'v1', credentials=st.session_state.credentials)
-    except Exception as e:
-        st.error(f"Error building Gmail service: {str(e)}")
-        return None
+    if st.session_state.credentials:
+        try:
+            return build('gmail', 'v1', credentials=st.session_state.credentials)
+        except Exception as e:
+            st.error(f"Error building Gmail service: {str(e)}")
+            st.session_state.credentials = None
+            return None
+
+    return None
 
 def send_email(to_email, subject, body):
     """Send email using Gmail API."""
