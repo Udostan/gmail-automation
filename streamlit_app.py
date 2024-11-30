@@ -15,6 +15,56 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS
+st.markdown("""
+<style>
+.button {
+    display: inline-block;
+    padding: 0.5em 1em;
+    margin: 0.5em 0;
+    background-color: #FF4B4B;
+    color: white;
+    text-decoration: none;
+    border-radius: 0.3em;
+    border: none;
+    font-size: 1em;
+    font-weight: bold;
+}
+.button:hover {
+    background-color: #FF2B2B;
+    color: white;
+    text-decoration: none;
+}
+.email-box {
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 5px;
+    background-color: white;
+}
+.email-header {
+    color: #1f77b4;
+    font-weight: bold;
+}
+.stButton>button {
+    width: 100%;
+    margin: 1px;
+}
+.feature-box {
+    background-color: #f0f2f6;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 10px 0;
+}
+.settings-box {
+    background-color: #e6e9ef;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 5px 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Gmail API scopes
 SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly']
 
@@ -47,15 +97,40 @@ def get_gmail_service():
                     SCOPES,
                     redirect_uri=client_config["web"]["redirect_uris"][1]  # Use the Streamlit Cloud URI
                 )
-                authorization_url, _ = flow.authorization_url(prompt='consent')
-                st.markdown(f'<a href="{authorization_url}" target="_self"><button>Authorize Gmail</button></a>', unsafe_allow_html=True)
+                authorization_url, state = flow.authorization_url(
+                    access_type='offline',
+                    include_granted_scopes='true',
+                    prompt='consent'
+                )
+                
+                # Store state in session
+                st.session_state['oauth_state'] = state
+                
+                # Create authorization URL with state
+                st.markdown(
+                    f'<a href="{authorization_url}" target="_self" class="button">Authorize Gmail Access</a>',
+                    unsafe_allow_html=True
+                )
                 
                 # Handle the redirect with authorization code
-                code = st.experimental_get_query_params().get("code")
-                if code:
-                    flow.fetch_token(code=code[0])
-                    st.session_state.credentials = flow.credentials
-                    return build('gmail', 'v1', credentials=st.session_state.credentials)
+                params = st.experimental_get_query_params()
+                code = params.get("code", [None])[0]
+                state_param = params.get("state", [None])[0]
+                
+                if code and state_param:
+                    if state_param != st.session_state.get('oauth_state'):
+                        st.error("State mismatch. Please try authenticating again.")
+                        return None
+                        
+                    try:
+                        flow.fetch_token(code=code)
+                        st.session_state.credentials = flow.credentials
+                        st.success("Successfully authenticated!")
+                        st.rerun()
+                        return build('gmail', 'v1', credentials=st.session_state.credentials)
+                    except Exception as e:
+                        st.error(f"Error exchanging code for token: {str(e)}")
+                        return None
                 return None
                 
         except Exception as e:
@@ -93,39 +168,6 @@ def send_email(to_email, subject, body):
     except Exception as e:
         st.error(f"Error sending email: {str(e)}")
         return False
-
-# Custom CSS
-st.markdown("""
-<style>
-    .email-box {
-        border: 1px solid #ddd;
-        padding: 10px;
-        margin: 5px 0;
-        border-radius: 5px;
-        background-color: white;
-    }
-    .email-header {
-        color: #1f77b4;
-        font-weight: bold;
-    }
-    .stButton>button {
-        width: 100%;
-        margin: 1px;
-    }
-    .feature-box {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .settings-box {
-        background-color: #e6e9ef;
-        padding: 15px;
-        border-radius: 8px;
-        margin: 5px 0;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # Sample data with more realistic content
 SAMPLE_EMAILS = [
