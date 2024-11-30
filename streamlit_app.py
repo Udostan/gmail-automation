@@ -47,15 +47,23 @@ def get_gmail_service():
                     SCOPES,
                     redirect_uri=client_config["web"]["redirect_uris"][1]  # Use the Streamlit Cloud URI
                 )
-                st.session_state.credentials = flow.run_local_server(port=8501)
+                authorization_url, _ = flow.authorization_url(prompt='consent')
+                st.markdown(f'<a href="{authorization_url}" target="_self"><button>Authorize Gmail</button></a>', unsafe_allow_html=True)
+                
+                # Handle the redirect with authorization code
+                code = st.experimental_get_query_params().get("code")
+                if code:
+                    flow.fetch_token(code=code[0])
+                    st.session_state.credentials = flow.credentials
+                    return build('gmail', 'v1', credentials=st.session_state.credentials)
+                return None
                 
         except Exception as e:
             st.error(f"Authentication failed: {str(e)}")
             return None
 
     try:
-        service = build('gmail', 'v1', credentials=st.session_state.credentials)
-        return service
+        return build('gmail', 'v1', credentials=st.session_state.credentials)
     except Exception as e:
         st.error(f"Error building Gmail service: {str(e)}")
         return None
