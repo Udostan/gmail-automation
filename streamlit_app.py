@@ -192,8 +192,16 @@ if not st.session_state.user_profile['profile_setup']:
     with st.form("profile_setup"):
         name = st.text_input("Your Name:", value=st.session_state.user_profile.get('name', ''))
         email = st.text_input("Your Email:", value=st.session_state.user_profile.get('email', ''))
-        signature = st.text_area("Email Signature:", value=st.session_state.user_profile.get('signature', ''), 
-                               help="This will be automatically added to your emails")
+        signature = st.text_area("Email Signature:", 
+            value=st.session_state.user_profile.get('signature', ''),
+            placeholder="""Example:
+Best regards,
+John Smith
+Marketing Manager
+ABC Company
+Phone: (555) 123-4567
+www.abccompany.com""",
+            help="Your email signature is automatically added at the end of your emails. It typically includes your name, title, contact information, and any professional details you want to share.")
         
         if st.form_submit_button("Save Profile"):
             st.session_state.user_profile.update({
@@ -385,7 +393,16 @@ elif st.session_state.page == 'settings':
         with st.form("user_profile"):
             name = st.text_input("Your Name:", value=st.session_state.user_profile['name'])
             email = st.text_input("Your Email:", value=st.session_state.user_profile['email'])
-            signature = st.text_area("Email Signature:", value=st.session_state.user_profile['signature'])
+            signature = st.text_area("Email Signature:", 
+                value=st.session_state.user_profile['signature'],
+                placeholder="""Example:
+Best regards,
+John Smith
+Marketing Manager
+ABC Company
+Phone: (555) 123-4567
+www.abccompany.com""",
+                help="Your email signature is automatically added at the end of your emails. It typically includes your name, title, contact information, and any professional details you want to share.")
             
             if st.form_submit_button("Update Profile"):
                 st.session_state.user_profile.update({
